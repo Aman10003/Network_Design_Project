@@ -1,0 +1,12 @@
+TODO:
+- [ ] Sequence number of packets
+- [ ] Checksum (parity bit) (manual)
+- [ ] CRC checksum (library)
+- [ ] Error detection
+- [ ] Packet error generator
+- [ ] Data packet error
+- [ ] ACK packet error
+- [ ] Random packet delay
+- [ ] Performance Charts
+- [ ] GUI
+- [ ] Multithreading(not a priority)
