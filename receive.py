@@ -6,15 +6,11 @@ from PIL import Image
 
 class receive:
     def udp_receive(self, port: socket, server: bool):
-        if server:
-            print('The server is ready to receive image data')
-        else:
-            print('The server is ready to receive image data')
-
+        print('The server is ready to receive image data' if server else 'Client ready to receive image data')
         received_data = {}
 
         while True:
-            packet, address = port.recvfrom(4096 + 2)  # Packet + sequence number
+            packet, address = port.recvfrom(4096 + 3)  # Packet + sequence number
 
             # Check for termination signal
             if packet == b'END':
@@ -23,9 +19,16 @@ class receive:
 
             # Extract sequence number (first 2 bytes) and data
             seq_num = struct.unpack("!H", packet[:2])[0]
-            data = packet[2:]
+            received_parity = struct.unpack("!B", packet[2:3])[0]
+            data = packet[3:]
 
-            received_data[seq_num] = data  # Store packet by sequence number
+            calculated_parity = self.calculate_parity(data)
+
+            if received_parity == calculated_parity:
+                print(f"Received valid packet {seq_num} with correct parity {received_parity}")
+                received_data[seq_num] = data # Store packet by sequence number
+            else:
+                print(f"Parity mismatch for packet {seq_num}, expected {calculated_parity} but got {received_parity}")
 
         # Reassemble the full image byte stream in order
         sorted_data = b''.join(received_data[i] for i in sorted(received_data.keys()))
@@ -40,3 +43,7 @@ class receive:
         else:
             img.save("client_image.bmp")
         print("Image successfully saved as client/server_image.bmp")
+        
+        def calculate_parity(self, data_bytes):
+        count_ones = sum(bin(byte).count('1') for byte in data_bytes)
+        return count_ones % 2
