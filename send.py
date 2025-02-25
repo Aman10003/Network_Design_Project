@@ -3,6 +3,8 @@ import numpy as np
 from PIL import Image
 import pickle  # To serialize NumPy array
 import struct  # To attach packet sequence numbers
+import random
+import time
 
 
 class send:
@@ -10,7 +12,11 @@ class send:
         """Creates a packet with a sequence number."""
         start = sequence_number * packet_size
         end = start + packet_size
-        return struct.pack("!H", sequence_number) + data_bytes[start:end]
+        parity = self.calculate_parity(packet_data)
+        return struct.pack("!H", sequence_number) + struct.pack("!B", parity) + packet_data
+
+    def random_delay(self):
+    time.sleep(random.randint(0, 500) / 1000)
 
     def udp_send(self, port: socket, dest, image: str = 'image/OIP.bmp'):
         # Load the image and convert into numpy array
@@ -29,7 +35,9 @@ class send:
         # Send packets with sequence numbers
         for i in range(total_packets):
             packet = self.make_packet(data_bytes, packet_size, i)
+            self.random_delay()
             port.sendto(packet, dest)
+            print(f"Sent packet {i} with parity {packet[3]}")
 
         # Send termination signal
         port.sendto(b'END', dest)
