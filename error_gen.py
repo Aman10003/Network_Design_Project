@@ -1,5 +1,6 @@
 import random
 
+
 class error_gen:
 
     def packet_error(self, packet, error_rate: float = 0):
@@ -16,9 +17,10 @@ class error_gen:
         if error == 0:
             return random.getrandbits(length)
         else:
-            for i in error:
+            packet_bin = list(f"{packet:0{length}b}")  # Convert to binary list
+            error_positions = random.sample(range(length), error)  # Get random bit positions to flip
 
+            for i in error_positions:
+                packet_bin[i] = '0' if packet_bin[i] == '1' else '1'  # Flip the bit
 
-
-
-
+            return int("".join(packet_bin), 2)  # Convert back to integer
