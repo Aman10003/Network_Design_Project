@@ -31,20 +31,20 @@ class Server:
                 s = send.send()
                 s.udp_send(serverSocket, clientAddress)
 
-                #Sending ACK back to client
-                ack_packet = struct.pack("!H", 0)  # ACK with sequence number 0
-                ack_packet = error_simulator.packet_error(ack_packet, error_rate=0.2)
-                serverSocket.sendto(ack_packet, clientAddress)
+                # #Sending ACK back to client
+                # ack_packet = struct.pack("!H", 0)  # ACK with sequence number 0
+                # ack_packet = error_simulator.packet_error(ack_packet, error_rate=0.2)
+                # serverSocket.sendto(ack_packet, clientAddress)
 
             # Receives file from client
             elif message == 'PUSH':
                 r = receive.receive()
                 r.udp_receive(serverSocket, True)
 
-                # Sending another acknowledgment for PUSH
-                ack_packet = struct.pack("!H", 1)  #ACK with sequence number 1
-                ack_packet = error_simulator.packet_error(ack_packet, error_rate=0.2)
-                serverSocket.sendto(ack_packet, clientAddress)
+                # # Sending another acknowledgment for PUSH
+                # ack_packet = struct.pack("!H", 1)  #ACK with sequence number 1
+                # ack_packet = error_simulator.packet_error(ack_packet, error_rate=0.2)
+                # serverSocket.sendto(ack_packet, clientAddress)
 
             # Ends communication
             elif message == 'END':
