@@ -21,8 +21,10 @@ class error_gen:
         # Determine how many bits to flip (1-3 random bits) if zero, then all bits are randomized
         error_count = random.randint(0, 3)
         if error_count == 0:
+            print("Full Random Error")  # Debug
             return random.getrandbits(length)
         else:
+            print(str(error_count) + " bit errors")  # Debug
             for _ in range(error_count):
                 # Choose a random byte and bit to flip
                 byte_index = random.randint(0, length - 1)  # Random byte
