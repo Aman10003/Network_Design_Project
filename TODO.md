@@ -1,12 +1,12 @@
 TODO:
 - [ ] Sequence number of packets (Yaritza)
 - [ ] Checksum (parity bit) (manual) (Yaritza)
-- [ ] CRC checksum (library)
-- [ ] Error detection
+- [ ] CRC checksum (library) (Bryan)
+- [ ] Error detection (Bryan)
 - [ ] Packet error generator (Anthony)
 - [ ] Data packet error (Anthony)
 - [ ] ACK packet error (Nathan)
 - [ ] Random packet delay (Yaritza)
-- [ ] Performance Charts
+- [ ] Performance Charts (Bryan)
 - [ ] GUI (Nathan and Anthony)
 - [ ] Multithreading(not a priority)
