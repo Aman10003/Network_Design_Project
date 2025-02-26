@@ -10,6 +10,8 @@ class Server:
         serverPort = 12000
         serverSocket = socket(AF_INET, SOCK_DGRAM)
 
+        # Initialize error generator
+        error_simulator = error_gen()
 
         print(f"Starting server...")  # Debugging print
         serverSocket.bind(('', serverPort))

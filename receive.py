@@ -63,5 +63,8 @@ class receive:
 
         # Convert array back to an image and save
         img = Image.fromarray(numpydata)
-        img.save("server_image.bmp" if server else "client_image.bmp")
-        print("Image successfully saved as server_image.bmp or client_image.bmp")
+        if server:
+            img.save("server_image.bmp")
+        else:
+            img.save("client_image.bmp")
+        print("Image successfully saved as client/server_image.bmp")
