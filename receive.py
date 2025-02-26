@@ -12,6 +12,7 @@ class receive:
             print('The server is ready to receive image data')
 
         received_data = {}
+        expected_seq_num = 0  # Start with an initial expected sequence number
 
         while True:
             packet, address = port.recvfrom(4096 + 2)  # Packet + sequence number
@@ -25,7 +26,18 @@ class receive:
             seq_num = struct.unpack("!H", packet[:2])[0]
             data = packet[2:]
 
+            if seq_num != expected_seq_num:  # Check for sequence number mismatch
+                print(
+                    f">>> Corrupted ACK or out-of-order packet! Expected {expected_seq_num}, but got {seq_num}. Retransmitting...")
+                # Retransmit or log the error
+                continue
+
+            # Otherwise, we consider the packet valid.
+            print(f"Received packet {seq_num}. Data added.")
             received_data[seq_num] = data  # Store packet by sequence number
+
+            # Update the expected sequence number for the next packet
+            expected_seq_num += 1
 
         # Reassemble the full image byte stream in order
         sorted_data = b''.join(received_data[i] for i in sorted(received_data.keys()))
