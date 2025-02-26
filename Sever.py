@@ -18,9 +18,11 @@ class Server:
             message, clientAddress = serverSocket.recvfrom(2048)
             message = message.decode()
 
+            # Returns hello
             if message == 'HELLO':
                 serverSocket.sendto(message.encode(), clientAddress)
 
+            # Returns File to client
             elif message == 'GET':
                 s = send.send()
                 s.udp_send(serverSocket, clientAddress)
@@ -30,6 +32,7 @@ class Server:
                 ack_packet = error_simulator.packet_error(ack_packet, error_rate=0.2)
                 serverSocket.sendto(ack_packet, clientAddress)
 
+            # Receives file from client
             elif message == 'PUSH':
                 r = receive.receive()
                 r.udp_receive(serverSocket, True)
@@ -39,6 +42,7 @@ class Server:
                 ack_packet = error_simulator.packet_error(ack_packet, error_rate=0.2)
                 serverSocket.sendto(ack_packet, clientAddress)
 
+            # Ends communication
             elif message == 'END':
                 break
 
