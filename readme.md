@@ -1,15 +1,16 @@
 # Readme File
 ## Title and Authors
-* Phase 1
-* Anthony Mangino
+* Phase 2
+* Anthony Mangino, Bryan Grullon, Nathan L, Yaritza Sanchez
 ## Environment
 * Windows
 * Python 3.13
-* Package
+* Packages
   * Numpy
   * Socket
   * PIL
   * Pickle
+  * Random
   * struct
 ## Instructions
 * The client options are
