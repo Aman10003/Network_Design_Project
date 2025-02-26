@@ -40,7 +40,7 @@ class send:
 
         print(f"Sending {total_packets} packets...")
 
-        # Alternating sequence number (0 or 1)
+        # Increases sequence number for each packet
         sequence_number = 0
 
         # Send packets with sequence numbers
@@ -61,8 +61,8 @@ class send:
 
             if ack_num == sequence_number:
                 print(f"ACK {ack_num} received. Sending next packet.")
-                # Toggle sequence number between 0 and 1
-                sequence_number = 1 - sequence_number
+                # Increases sequence number for each packet
+                sequence_number += 1
             else:
                 print(f"ACK {ack_num} incorrect! Retransmitting packet {sequence_number}...")
 
