@@ -9,12 +9,14 @@ class Server:
     def main(self):
         serverPort = 12000
         serverSocket = socket(AF_INET, SOCK_DGRAM)
-        serverSocket.bind(('', serverPort))
 
-        # Initialize error generator
-        error_simulator = error_gen()
+
+        print(f"Starting server...")  # Debugging print
+        serverSocket.bind(('', serverPort))
+        print(f"Server is listening on port {serverPort}")
 
         while True:
+            print("Waiting for client messages...")
             message, clientAddress = serverSocket.recvfrom(2048)
             message = message.decode()
 
