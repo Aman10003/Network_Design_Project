@@ -1,3 +1,4 @@
+from collections.abc import bytearray_iterator
 from socket import *
 import pickle
 import struct
@@ -16,7 +17,7 @@ class receive:
         """Receives an image file over UDP using sequence numbers and checksum."""
         print('The server is ready to receive image data' if server else 'The client is ready to receive image data')
 
-        received_data = {}
+        received_data = bytearray()
         expected_seq_num = 0  # Start with an initial expected sequence number
 
         while True:
@@ -37,7 +38,15 @@ class receive:
 
             if seq_num != expected_seq_num:  # Check for sequence number mismatch
                 print(f">>> Out-of-order packet! Expected {expected_seq_num}, but got {seq_num}. Ignoring...")
+                ack_packet = struct.pack("!H", 1 - expected_seq_num)  # Send ACK for last correct packet
+                port.sendto(ack_packet, address)
                 continue
+
+            #Correctly append received data in sequence order
+            received_data.extend(data)
+
+            # Update expected sequence number (Alternating Bit Protocol)
+            expected_seq_num = 1 - expected_seq_num
 
             # Otherwise, packet is valid.
             print(f"Received packet {seq_num}. Checksum verified. Data added.")
@@ -59,7 +68,9 @@ class receive:
         sorted_data = b''.join(received_data[i] for i in sorted(received_data.keys()))
 
         # Deserialize the array
-        numpydata = pickle.loads(sorted_data)
+    try:
+        numpydata = pickle.loads(received_data)
+        img = Image.fromarray(numpydata)
 
         # Convert array back to an image and save
         img = Image.fromarray(numpydata)
@@ -68,3 +79,8 @@ class receive:
         else:
             img.save("client_image.bmp")
         print("Image successfully saved as client/server_image.bmp")
+    except pickle.UnpicklingError:
+        print("Error: Incomplete data received. Transmission may have been interrupted.")
+
+    except Exception as e:
+        print(f"Unexpected error during image reconstruction: {e}")
