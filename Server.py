@@ -12,11 +12,16 @@ class Server:
         print(f"Starting server...")  # Debugging print
         serverSocket.bind(('', serverPort))
         print(f"Server is listening on port {serverPort}")
+        serverSocket.settimeout(500)  # Timeout after 500 seconds
 
         while True:
             print("Waiting for client messages...")
-            message, clientAddress = serverSocket.recvfrom(2048)
-            message = message.decode()
+            try:
+                message, clientAddress = serverSocket.recvfrom(2048)
+                message = message.decode()
+            except timeout:
+                print("No message received, continuing...")
+                continue  # Go back to waiting for a new message
 
             if message == "PUSH" or message == "GET":
                 # Assuming you have a UDP socket set up as `serverSocket`
@@ -46,9 +51,10 @@ class Server:
 
             # Ends communication
             elif message == 'END':
+                print("Ending communication, closing server.")
+                serverSocket.close()
                 break
 
-        serverSocket.close()
 
 
 if __name__ == '__main__':

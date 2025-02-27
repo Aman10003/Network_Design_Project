@@ -46,7 +46,7 @@ class send:
 
         # Increases sequence number for each packet
         sequence_number = 0
-        MAX_RETRIES = 5  # Define a retransmission limit
+        MAX_RETRIES = 20  # Define a retransmission limit
 
         # Send packets
         for i in range(total_packets):
