@@ -12,9 +12,9 @@ class Server:
         print(f"Starting server...")  # Debugging print
         serverSocket.bind(('', serverPort))
         print(f"Server is listening on port {serverPort}")
-        serverSocket.settimeout(500)  # Timeout after 500 seconds
 
         while True:
+            serverSocket.settimeout(50)  # Timeout after 500 seconds
             print("Waiting for client messages...")
             try:
                 message, clientAddress = serverSocket.recvfrom(2048)

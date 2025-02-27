@@ -30,7 +30,7 @@ class receive:
                 port.setsockopt(SOL_SOCKET, SO_RCVBUF, 65536)  # Increase receive buffer
 
                 # Second implementation to try and capture whole packet
-                packet, address = port.recvfrom(65535)  # Sequence (2 bytes) + data + checksum (1 byte)
+                packet, address = port.recvfrom(65535)
                 # Check for termination signal
                 if packet == b'END':
                     print("Received all packets, reconstructing the image...")
@@ -47,6 +47,7 @@ class receive:
                 received_checksum = packet[-1]
 
                 computed_checksum = self.compute_parity(data)  # Compute checksum from data
+                print(f"Receiver computed checksum: {computed_checksum}, Received checksum: {received_checksum}")
 
                 # Handle checksum error
                 if received_checksum != computed_checksum:
