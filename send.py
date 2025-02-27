@@ -20,6 +20,7 @@ class send:
 
         # Compute parity bit
         parity_bit = self.compute_parity(chunk)
+        print(f"Sender computed parity: {parity_bit}")
 
         # Attach sequence number (2 bytes) + chunk + checksum (1 byte)
         return struct.pack("!H", sequence_number) + chunk + struct.pack("!B", parity_bit)
