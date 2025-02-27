@@ -4,6 +4,7 @@ import struct
 import random
 import time
 from PIL import Image
+import error_gen
 
 
 class receive:
@@ -12,16 +13,19 @@ class receive:
         ones_count = sum(bin(byte).count('1') for byte in data)
         return ones_count % 2  # Returns 0 or 1
 
-    def udp_receive(self, port: socket, server: bool):
+    def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float):
         """Receives an image file over UDP using sequence numbers and checksum."""
         print('The server is ready to receive image data' if server else 'The client is ready to receive image data')
 
         received_data = {}
         expected_seq_num = 0  # Start with an initial expected sequence number
 
+        # Initialized error_gen
+        eg = error_gen.error_gen()
+
         while True:
             try:
-                # Origional Implementation
+                # Original Implementation
                 # packet, address = port.recvfrom(4096 + 3)  # Sequence (2 bytes) + data + checksum (1 byte)
 
                 port.setsockopt(SOL_SOCKET, SO_RCVBUF, 65536)  # Increase receive buffer
@@ -66,6 +70,10 @@ class receive:
 
                 # Send ACK back to the sender
                 ack_packet = struct.pack("!H", seq_num)
+                # ACK packet error
+                if error_type == 2:
+                    ack_packet = eg.packet_error(ack_packet, error_rate)
+
                 port.sendto(ack_packet, address)
                 print(f"Sent ACK {seq_num}, Delay: {round(delay * 1000, 2)}ms")
 
