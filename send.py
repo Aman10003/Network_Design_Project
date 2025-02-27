@@ -17,9 +17,8 @@ class send:
         checksum = 0
         for byte in data:
             checksum ^= byte
-            checksum &= 0xFFFF  # Ensure that the checksum stays within 16 bits
+            checksum &= 0xFF  # Ensure that the checksum stays within 16 bits
         return checksum
-
     def make_packet(self, data_bytes, packet_size, sequence_number):
         """Creates a packet with sequence number and checksum."""
         start = sequence_number * packet_size
