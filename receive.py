@@ -50,11 +50,14 @@ class receive:
                 computed_checksum = self.compute_parity(data)  # Compute checksum from data
 
                 if received_checksum != computed_checksum:
-                    print(f">>> Checksum error in packet {seq_num}! Expected {computed_checksum}, got {received_checksum}.")
-                    continue  # Ignore corrupted packet
+                    print(f">>> Checksum error in packet {seq_num}! Discarding...")
+                    continue  # Ignore the corrupted packet
 
-                if seq_num != expected_seq_num:  # Check for sequence number mismatch
-                    print(f">>> Out-of-order packet! Expected {expected_seq_num}, but got {seq_num}. Ignoring...")
+                if seq_num != expected_seq_num:
+                    print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
+                    # Resend the previous ACK to indicate the expected sequence number
+                    ack_packet = struct.pack("!H", expected_seq_num - 1)  # Last valid packet
+                    port.sendto(ack_packet, address)
                     continue
 
                 # Otherwise, packet is valid.

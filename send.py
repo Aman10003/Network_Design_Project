@@ -3,8 +3,6 @@ import numpy as np
 from PIL import Image
 import pickle  # To serialize NumPy array
 import struct  # To attach packet sequence numbers
-import time  # To introduce random delays
-import random  # For network delay simulation
 import error_gen
 
 
@@ -44,35 +42,44 @@ class send:
 
         print(f"Sending {total_packets} packets...")
 
+        port.settimeout(1.0)  # 1 second timeout for ACK reception
+
         # Increases sequence number for each packet
         sequence_number = 0
+        MAX_RETRIES = 5  # Define a retransmission limit
 
-        # Send packets with sequence numbers
+        # Send packets
         for i in range(total_packets):
             packet = self.make_packet(data_bytes, packet_size, sequence_number)
+            retries = 0
 
-            # Error generation
-            if error_type == 3:
-                packet = eg.packet_error(packet, error_rate)
+            while retries < MAX_RETRIES:
+                try:
+                    # Error generation (if necessary)
+                    if error_type == 3:
+                        packet = eg.packet_error(packet, error_rate)
 
-            # Introduce a random network delay (0-500ms)
-            delay = random.uniform(0, 0.5)
-            time.sleep(delay)
+                    # Send packet
+                    port.sendto(packet, dest)
+                    print(f"Sent packet {sequence_number}")
 
-            # Send packet
-            port.sendto(packet, dest)
-            print(f"Sent packet {sequence_number}, Checksum: {packet[-1]}, Delay: {round(delay*1000, 2)}ms")
+                    # Wait for ACK
+                    ack_packet, _ = port.recvfrom(2)  # Expect a 2-byte ACK
+                    ack_num = struct.unpack("!H", ack_packet)[0]
 
-            # Wait for ACK
-            ack_packet, _ = port.recvfrom(2)
-            ack_num = struct.unpack("!H", ack_packet)[0]
+                    if ack_num == sequence_number:
+                        print(f"ACK {ack_num} received. Sending next packet.")
+                        sequence_number += 1
+                        break  # Exit the retry loop
+                    else:
+                        print(f"Incorrect ACK {ack_num}. Retransmitting packet {sequence_number}...")
+                except timeout:
+                    retries += 1
+                    print(f"Timeout for packet {sequence_number}. Retries: {retries}")
 
-            if ack_num == sequence_number:
-                print(f"ACK {ack_num} received. Sending next packet.")
-                # Increases sequence number for each packet
-                sequence_number += 1
-            else:
-                print(f"ACK {ack_num} incorrect! Retransmitting packet {sequence_number}...")
+            if retries == MAX_RETRIES:
+                print(f"Failed to send packet {sequence_number} after {MAX_RETRIES} retries.")
+                return
 
         # Send termination signal
         port.sendto(b'END', dest)
