@@ -13,7 +13,12 @@
   * Random
   * struct
 ## Instructions
-* The client options are
+1. Start the server
+   -python server.py
+2. Start the client
+   -python client.py
+3. The client should display a menu with options (H, G, P, E).
+* Test sending basic commands:
   * H - Says hello to sever and sever responds
   * G - Gets image from server
   * P - Pushes image to server
@@ -24,10 +29,14 @@
   * Can use pip install in install any missing packages
 
 ## Files
-* Client.py - client file
-* Sever.py - sever file
-* send.py - process to send image
-* receive.py - process to receive image
-* OIP.bmp - original image
-* client/server_image.bmp - transmitted image
-* design.md - how the files work
+* Client.py - Client-side implementation (sends commands to the server)
+* Sever.py - Server-side implementation (handles client requests)
+* send.py - Handles sending images using RDT 2.2 (sequence numbers, checksum, retransmission)
+* receive.py - Handles receiving images using RDT 2.2 (sequence numbers, checksum verification
+* OIP.bmp - original image  used for testing transmission
+* client/server_image.bmp - Reconstructed image received after transmission.
+* design.md - Documentation explaining file structure and implementation details.
+* server_image.bmp - Reconstructed image received after transmission.
+* error_gen.py - Generates errors for testing ACK and data corruption. Fixed timeout error.
+* DEBUG.py - Debugging script. Fixed ACK issues
+* .gitignore - Ignores unnecessary files in the repository. Updated for error_gen.py
