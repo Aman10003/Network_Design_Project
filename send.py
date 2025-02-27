@@ -7,10 +7,18 @@ import error_gen
 
 
 class send:
-    def compute_parity(self, data):
-        """Calculate a simple parity bit: 0 for even 1s, 1 for odd 1s."""
-        ones_count = sum(bin(byte).count('1') for byte in data)
-        return ones_count % 2  # Returns 0 or 1
+    # def compute_parity(self, data):
+    #     """Calculate a simple parity bit: 0 for even 1s, 1 for odd 1s."""
+    #     ones_count = sum(bin(byte).count('1') for byte in data)
+    #     return ones_count % 2  # Returns 0 or 1
+
+    def compute_xor_checksum(self, data):
+        """Calculate a 16-bit XOR checksum."""
+        checksum = 0
+        for byte in data:
+            checksum ^= byte
+            checksum &= 0xFFFF  # Ensure that the checksum stays within 16 bits
+        return checksum
 
     def make_packet(self, data_bytes, packet_size, sequence_number):
         """Creates a packet with sequence number and checksum."""
@@ -19,11 +27,11 @@ class send:
         chunk = data_bytes[start:end]
 
         # Compute parity bit
-        parity_bit = self.compute_parity(chunk)
-        print(f"Sender computed parity: {parity_bit}")
+        xor_checksum = self.compute_xor_checksum(chunk)
+        print(f"Sender computed parity: {xor_checksum}")
 
         # Attach sequence number (2 bytes) + chunk + checksum (1 byte)
-        return struct.pack("!H", sequence_number) + chunk + struct.pack("!B", parity_bit)
+        return struct.pack("!H", sequence_number) + chunk + struct.pack("!B", xor_checksum)
 
     def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp'):
         """Sends an image file over UDP with RDT 2.2 (with sequence numbers, checksum, and delay)."""
