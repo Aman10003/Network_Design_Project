@@ -8,10 +8,18 @@ import error_gen
 
 
 class receive:
-    def compute_parity(self, data):
-        """Calculate a simple parity bit: 0 for even 1s, 1 for odd 1s."""
-        ones_count = sum(bin(byte).count('1') for byte in data)
-        return ones_count % 2  # Returns 0 or 1
+    # def compute_parity(self, data):
+    #     """Calculate a simple parity bit: 0 for even 1s, 1 for odd 1s."""
+    #     ones_count = sum(bin(byte).count('1') for byte in data)
+    #     return ones_count % 2  # Returns 0 or 1
+
+    def compute_xor_checksum(self, data):
+        """Calculate a 16-bit XOR checksum."""
+        checksum = 0
+        for byte in data:
+            checksum ^= byte
+            checksum &= 0xFFFF  # Ensure that the checksum stays within 16 bits
+        return checksum
 
     def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float):
         """Receives an image file over UDP using sequence numbers and checksum."""
@@ -46,7 +54,7 @@ class receive:
                 data = packet[2:-1]  # Extract the actual image data
                 received_checksum = packet[-1]
 
-                computed_checksum = self.compute_parity(data)  # Compute checksum from data
+                computed_checksum = self.compute_xor_checksum(data)  # Compute checksum from data
                 print(f"Receiver computed checksum: {computed_checksum}, Received checksum: {received_checksum}")
 
                 # Handle checksum error
