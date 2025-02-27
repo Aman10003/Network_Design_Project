@@ -21,8 +21,13 @@ class error_gen:
         # Determine how many bits to flip (1-3 random bits) if zero, then all bits are randomized
         error_count = random.randint(0, 3)
         if error_count == 0:
+            # print("Full Random Error")  # Debug
+            # return bytes(random.getrandbits(8) for _ in range(length))
+
             print("Full Random Error")  # Debug
-            return random.getrandbits(length)
+            # Preserve sequence number (first 2 bytes), corrupt only the rest
+            return packet[:2] + bytes(random.getrandbits(8) for _ in range(len(packet) - 2))
+
         else:
             print(str(error_count) + " bit errors")  # Debug
             for _ in range(error_count):
