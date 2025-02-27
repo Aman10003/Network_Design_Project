@@ -27,7 +27,6 @@ class receive:
             try:
                 # Original Implementation
                 # packet, address = port.recvfrom(4096 + 3)  # Sequence (2 bytes) + data + checksum (1 byte)
-
                 port.setsockopt(SOL_SOCKET, SO_RCVBUF, 65536)  # Increase receive buffer
 
                 # Second implementation to try and capture whole packet
@@ -49,15 +48,24 @@ class receive:
 
                 computed_checksum = self.compute_parity(data)  # Compute checksum from data
 
+                # Handle checksum error
                 if received_checksum != computed_checksum:
                     print(f">>> Checksum error in packet {seq_num}! Discarding...")
-                    continue  # Ignore the corrupted packet
+                    # Resend the last ACK for the previous packet
+                    if expected_seq_num > 0:
+                        ack_packet = struct.pack("!H", expected_seq_num - 1)  # Last valid packet
+                        port.sendto(ack_packet, address)
+                        print(f"Resent ACK {expected_seq_num - 1} due to checksum error.")
+                    continue
 
+                    # Handle out-of-order packets
                 if seq_num != expected_seq_num:
                     print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
-                    # Resend the previous ACK to indicate the expected sequence number
-                    ack_packet = struct.pack("!H", expected_seq_num - 1)  # Last valid packet
-                    port.sendto(ack_packet, address)
+                    # Resend the last ACK to indicate the expected sequence number
+                    if expected_seq_num > 0:
+                        ack_packet = struct.pack("!H", expected_seq_num - 1)  # Last valid packet
+                        port.sendto(ack_packet, address)
+                        print(f"Resent ACK {expected_seq_num - 1} due to out-of-order packet.")
                     continue
 
                 # Otherwise, packet is valid.
