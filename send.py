@@ -5,8 +5,8 @@ import pickle  # To serialize NumPy array
 import struct  # To attach packet sequence numbers
 import error_gen
 
-# For debug
-import binascii
+# # For debug
+# import binascii
 
 
 class send:
@@ -68,18 +68,20 @@ class send:
             while retries < MAX_RETRIES:
                 try:
                     # Error generation (if necessary)
+                    packet_modified = packet
                     if error_type == 3:
-                        packet = eg.packet_error(packet, error_rate)
+                        packet_modified = eg.packet_error(packet, error_rate)
 
-                        # Convert to hex for readability in the text file
-                        hex_data = binascii.hexlify(packet).decode()
-
-                        # Append to file with a new line
-                        with open("output_sender.txt", "a") as file:
-                            file.write(hex_data + "\n")
+                        # # Debug Code
+                        # # Convert to hex for readability in the text file
+                        # hex_data = binascii.hexlify(packet_modified).decode()
+                        #
+                        # # Append to file with a new line
+                        # with open("output_sender.txt", "a") as file:
+                        #     file.write(hex_data + "\n")
 
                     # Send packet
-                    port.sendto(packet, dest)
+                    port.sendto(packet_modified, dest)
                     print(f"Sent packet {sequence_number}")
 
                     # Wait for ACK

@@ -6,8 +6,8 @@ import time
 from PIL import Image
 import error_gen
 
-# For debug
-import binascii
+# # For debug
+# import binascii
 
 class receive:
     # def compute_parity(self, data):
@@ -50,13 +50,13 @@ class receive:
                 # Second implementation to try and capture whole packet
                 packet, address = port.recvfrom(65535)
 
-                #Debug Code
-                # Convert to hex for readability in the text file
-                hex_data = binascii.hexlify(packet).decode()
-
-                # Append to file with a new line
-                with open("output_receive.txt", "a") as file:
-                    file.write(hex_data + "\n")
+                # #Debug Code
+                # # Convert to hex for readability in the text file
+                # hex_data = binascii.hexlify(packet).decode()
+                #
+                # # Append to file with a new line
+                # with open("output_receive.txt", "a") as file:
+                #     file.write(hex_data + "\n")
 
                 # Check for termination signal
                 if packet == b'END':
