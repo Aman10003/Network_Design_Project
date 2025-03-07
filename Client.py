@@ -4,6 +4,12 @@ import send
 
 
 class Client:
+    def __init__(self):
+        self.server_name = 'localhost'
+        self.server_port = 12000
+        self.client_socket = socket(AF_INET, SOCK_DGRAM)
+        self.error_type = 1
+        self.error_rate = 0
 
     def error_selection(self):
         while True:
@@ -16,7 +22,6 @@ class Client:
                     print("Invalid option. Please enter 1, 2, or 3.")
             except ValueError:
                 print("Invalid input. Please enter a number (1, 2, or 3).")
-
 
         if self.error_type != 1:
             while True:
@@ -31,49 +36,53 @@ class Client:
         else:
             self.error_rate = 0
 
+    def say_hello(self):
+        message = 'HELLO'
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        server_message, _ = self.client_socket.recvfrom(2048)
+        print(server_message.decode())
+
+    def get_file(self):
+        message = 'GET'
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        self.error_selection()
+        message = str([self.error_type, self.error_rate])
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        r = receive.receive()
+        r.udp_receive(self.client_socket, False, self.error_type, self.error_rate)
+
+    def push_file(self):
+        message = 'PUSH'
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        self.error_selection()
+        message = str([self.error_type, self.error_rate])
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        file_loc = input("If you want a custom file, input now else press enter: ").strip()
+        s = send.send()
+        if file_loc == '':
+            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate)
+        else:
+            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate, file_loc)
+
+    def end_communication(self):
+        message = 'END'
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        self.client_socket.close()
+
     def main(self):
-        serverName = 'localhost'
-        serverPort = 12000
-        clientSocket = socket(AF_INET, SOCK_DGRAM)
-
         while True:
-            # Select option
-            option = input('Select input of H, G, P, E\n')
-            # Says hello to sever
+            option = input('Select input of H (Hello), G (Get File), P (Push File), E (End):\n')
             if option == 'H':
-                message = 'HELLO'
-                clientSocket.sendto(message.encode(), (serverName, serverPort))
-                serverMessage, serverAddress = clientSocket.recvfrom(2048)
-                print(serverMessage.decode())
-            # Gets file from sever
-            elif option == "G":
-                message = 'GET'
-                clientSocket.sendto(message.encode(), (serverName, serverPort))
-                self.error_selection()
-                message = str([self.error_type, self.error_rate])
-                clientSocket.sendto(message.encode(), (serverName, serverPort))
-                r = receive.receive()
-                r.udp_receive(clientSocket, False, self.error_type, self.error_rate)
-            # Pushes file to sever
+                self.say_hello()
+            elif option == 'G':
+                self.get_file()
             elif option == 'P':
-                message = 'PUSH'
-                clientSocket.sendto(message.encode(), (serverName, serverPort))
-                self.error_selection()
-                message = str([self.error_type, self.error_rate])
-                clientSocket.sendto(message.encode(), (serverName, serverPort))
-                file_loc = input("If you want custom file, input now else press enter")
-                s = send.send()
-                if file_loc.strip() == '':
-                    s.udp_send(clientSocket, (serverName, serverPort), self.error_type, self.error_rate)
-                else:
-                    s.udp_send(clientSocket, (serverName, serverPort), self.error_type, self.error_rate, file_loc)
-            # Ends communication
-            elif option == 'E':
-                message = 'END'
-                clientSocket.sendto(message.encode(), (serverName, serverPort))
+                self.push_file()
+            elif option == 'EH':
+                self.end_communication()
                 break
-
-        clientSocket.close()
+            else:
+                print("Invalid option. Please enter H, G, P, or E.")
 
 
 if __name__ == '__main__':
