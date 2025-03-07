@@ -1,12 +1,15 @@
 TODO:
-- [ ] Sequence number of packets (Yaritza)
-- [ ] Checksum (parity bit) (manual) (Yaritza)
-- [ ] CRC checksum (library) (Bryan)
-- [ ] Error detection (Bryan)
-- [ ] Packet error generator (Anthony)
-- [ ] Data packet error (Anthony)
-- [ ] ACK packet error (Nathan)
-- [ ] Random packet delay (Yaritza)
-- [ ] Performance Charts (Bryan)
-- [ ] GUI (Nathan and Anthony)
-- [ ] Multithreading(not a priority)
+- [ ] CRC checksum (library)
+- [ ] Error detection
+- [ ] Random packet delay (Maybe done)
+- [ ] Performance Charts 
+- [ ] Measure and compare the impact of various delay ranges on:
+-  Total transmission time
+-  Number of retransmissions
+-  Number of duplicate ACKs received
+- [ ] Implement an adaptive timeout mechanism that dynamically adjusts the
+retransmission timer based on observed delay trends.
+
+- [ ] GUI 
+- [ ] Progress bar
+- [ ] Multithreading(Maybe have sender and recieve as its own subprocess)
