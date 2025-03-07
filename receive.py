@@ -6,12 +6,22 @@ import time
 from PIL import Image
 import error_gen
 
+# For debug
+import binascii
 
 class receive:
     # def compute_parity(self, data):
     #     """Calculate a simple parity bit: 0 for even 1s, 1 for odd 1s."""
     #     ones_count = sum(bin(byte).count('1') for byte in data)
     #     return ones_count % 2  # Returns 0 or 1
+
+    def ack_packet(self, index, port, address):
+        # Simulate network delay (0-500ms) before sending ACK
+        delay = random.uniform(0, 0.5)
+        time.sleep(delay)
+
+        ack_packet = struct.pack("!H", index)  # Last valid packet
+        port.sendto(ack_packet, address)
 
     def compute_xor_checksum(self, data):
         """Calculate a 16-bit XOR checksum."""
@@ -30,15 +40,24 @@ class receive:
 
         # Initialized error_gen
         eg = error_gen.error_gen()
+        port.setsockopt(SOL_SOCKET, SO_RCVBUF, 65536)  # Increase receive buffer
 
         while True:
             try:
                 # Original Implementation
                 # packet, address = port.recvfrom(4096 + 3)  # Sequence (2 bytes) + data + checksum (1 byte)
-                port.setsockopt(SOL_SOCKET, SO_RCVBUF, 65536)  # Increase receive buffer
 
                 # Second implementation to try and capture whole packet
                 packet, address = port.recvfrom(65535)
+
+                #Debug Code
+                # Convert to hex for readability in the text file
+                hex_data = binascii.hexlify(packet).decode()
+
+                # Append to file with a new line
+                with open("output_receive.txt", "a") as file:
+                    file.write(hex_data + "\n")
+
                 # Check for termination signal
                 if packet == b'END':
                     print("Received all packets, reconstructing the image...")
@@ -50,9 +69,9 @@ class receive:
                     continue
 
                 # Extract sequence number, data, and checksum safely
-                seq_num = struct.unpack("!H", packet[:2])[0]
-                data = packet[2:-1]  # Extract the actual image data
-                received_checksum = packet[-1]
+                seq_num = struct.unpack("!H", packet[:2])[0]  # Unpack 2-byte sequence number
+                data = packet[2:-2]  # Extract the actual image data (excluding the last 2 bytes)
+                received_checksum = struct.unpack("!H", packet[-2:])[0]  # Unpack the last 2 bytes as checksum
 
                 computed_checksum = self.compute_xor_checksum(data)  # Compute checksum from data
                 print(f"Receiver computed checksum: {computed_checksum}, Received checksum: {received_checksum}")
@@ -62,8 +81,7 @@ class receive:
                     print(f">>> Checksum error in packet {seq_num}! Discarding...")
                     # Resend the last ACK for the previous packet
                     if expected_seq_num > 0:
-                        ack_packet = struct.pack("!H", expected_seq_num - 1)  # Last valid packet
-                        port.sendto(ack_packet, address)
+                        self.ack_packet(expected_seq_num - 1, port, address)
                         print(f"Resent ACK {expected_seq_num - 1} due to checksum error.")
                     continue
 
@@ -72,8 +90,7 @@ class receive:
                     print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
                     # Resend the last ACK to indicate the expected sequence number
                     if expected_seq_num > 0:
-                        ack_packet = struct.pack("!H", expected_seq_num - 1)  # Last valid packet
-                        port.sendto(ack_packet, address)
+                        self.ack_packet(expected_seq_num - 1, port, address)
                         print(f"Resent ACK {expected_seq_num - 1} due to out-of-order packet.")
                     continue
 

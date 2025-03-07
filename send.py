@@ -5,6 +5,9 @@ import pickle  # To serialize NumPy array
 import struct  # To attach packet sequence numbers
 import error_gen
 
+# For debug
+import binascii
+
 
 class send:
     # def compute_parity(self, data):
@@ -17,7 +20,7 @@ class send:
         checksum = 0
         for byte in data:
             checksum ^= byte
-            checksum &= 0xFF  # Ensure that the checksum stays within 16 bits
+            checksum &= 0xFFFF  # Ensure that the checksum stays within 16 bits
         return checksum
     def make_packet(self, data_bytes, packet_size, sequence_number):
         """Creates a packet with sequence number and checksum."""
@@ -30,7 +33,7 @@ class send:
         print(f"Sender computed parity: {xor_checksum}")
 
         # Attach sequence number (2 bytes) + chunk + checksum (1 byte)
-        return struct.pack("!H", sequence_number) + chunk + struct.pack("!B", xor_checksum)
+        return struct.pack("!H", sequence_number) + chunk + struct.pack("!H", xor_checksum)
 
     def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp'):
         """Sends an image file over UDP with RDT 2.2 (with sequence numbers, checksum, and delay)."""
@@ -61,11 +64,19 @@ class send:
             packet = self.make_packet(data_bytes, packet_size, sequence_number)
             retries = 0
 
+
             while retries < MAX_RETRIES:
                 try:
                     # Error generation (if necessary)
                     if error_type == 3:
                         packet = eg.packet_error(packet, error_rate)
+
+                        # Convert to hex for readability in the text file
+                        hex_data = binascii.hexlify(packet).decode()
+
+                        # Append to file with a new line
+                        with open("output_sender.txt", "a") as file:
+                            file.write(hex_data + "\n")
 
                     # Send packet
                     port.sendto(packet, dest)

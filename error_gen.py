@@ -19,7 +19,8 @@ class error_gen:
         length = len(packet)
 
         # Determine how many bits to flip (1-3 random bits) if zero, then all bits are randomized
-        error_count = random.randint(0, 3)
+        error_count = random.randint(1, 3)
+        # Full random error currently disabled
         if error_count == 0:
             # print("Full Random Error")  # Debug
             # return bytes(random.getrandbits(8) for _ in range(length))
