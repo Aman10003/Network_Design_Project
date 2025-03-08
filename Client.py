@@ -78,7 +78,7 @@ class Client:
                 self.get_file()
             elif option == 'P':
                 self.push_file()
-            elif option == 'EH':
+            elif option == 'E':
                 self.end_communication()
                 break
             else:
