@@ -173,3 +173,5 @@ cython_debug/
 /.idea
 /Aditional Documents
 *.zip
+server_image.bmp
+push_results.csv
