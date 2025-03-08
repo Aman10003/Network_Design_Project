@@ -1,98 +1,123 @@
 from nicegui import ui
 import subprocess
-import socket
+from socket import *
 import sys
+import port as p
+import send
+import receive
+import threading  # Use threading instead of multiprocessing
 
-# Display server responses
-response_textbox = ui.textarea(label='Server Responses')
+class gui:
 
-def run_server():
-    python_executable = sys.executable  # Get the path to the current Python interpreter
-    subprocess.Popen([python_executable, 'Server.py'])
-
-def run_client_hello():
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server_address = ('localhost', 12000)
-    message = 'HELLO'
-    client_socket.sendto(message.encode(), server_address)
-    server_message, _ = client_socket.recvfrom(2048)
-    response_textbox.value += f'HELLO Response: {server_message.decode()}\n'  # Append server response to text box
-    client_socket.close()
-
-def run_client_get(error_rate):
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server_address = ('localhost', 12000)
-    message = 'GET'
-    client_socket.sendto(message.encode(), server_address)
-    error_message = str([1, error_rate])  # Assuming error_type 1 for GET
-    client_socket.sendto(error_message.encode(), server_address)
-    server_message, _ = client_socket.recvfrom(2048)
-    response_textbox.value += f'GET Response: {server_message.decode()}\n'  # Append server response to text box
-    client_socket.close()
-
-def run_client_push(error_rate):
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server_address = ('localhost', 12000)
-    message = 'PUSH'
-    client_socket.sendto(message.encode(), server_address)
-    error_message = str([2, error_rate])  # Assuming error_type 2 for PUSH
-    client_socket.sendto(error_message.encode(), server_address)
-    server_message, _ = client_socket.recvfrom(2048)
-    response_textbox.value += f'PUSH Response: {server_message.decode()}\n'  # Append server response to text box
-    client_socket.close()
-
-def stop_server():
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server_address = ('localhost', 12000)
-    message = 'END'
-    client_socket.sendto(message.encode(), server_address)
-    response_textbox.value += 'Server stopped.\n'  # Append server stop message to text box
-    client_socket.close()
-
-# Manage the visibility of the error rate controls
-class ErrorRate:
     def __init__(self):
-        self.visible = False
-        self.error_rate = 0.0
+        self.error_rate_value = None
+        self.error_rate_label = None
+        self.error_type_name = None
+        self.server_name = 'localhost'
+        self.server_port = 12000
+        self.client_socket = socket(AF_INET, SOCK_DGRAM)
+        self.error_type = None
+        self.error_rate = None
+        self.state = None
 
-error_rate = ErrorRate()
+    def run_server(self):
+        # Creating a separate thread for running the server
+        server_thread = threading.Thread(target=self.start_server)
+        server_thread.start()  # Start the server in a new thread
 
-# Create UI elements
-def create_ui():
-    with ui.row():
-        ui.button('Start Server', on_click=run_server)
-        ui.button('Send HELLO from Client', on_click=run_client_hello)
-        ui.button('Stop Server', on_click=stop_server)
+    def start_server(self):
+        # This function will be run in a separate thread
+        python_executable = sys.executable  # Get the path to the current Python interpreter
+        subprocess.Popen([python_executable, 'Server.py'])
 
-    with ui.row():
-        get_button = ui.button('Get')
-        push_button = ui.button('Push')
+    def run_client_hello(self):
+        message = 'HELLO'
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        try:
+            server_message, _ = self.client_socket.recvfrom(2048)
+            self.response_textbox.value += f'HELLO Response: {server_message.decode()}\n'  # Append server response to text box
+            print(server_message.decode())
+        except ConnectionResetError:
+            self.response_textbox.value += 'Connection was forcibly closed by the server.\n'
 
-    # Create a label and slider for selecting error rate (only visible when Get or Push)
-    with ui.column().bind_visibility_from(error_rate, 'visible'):
-        error_rate_label = ui.label('Select Error Rate')
-        error_rate_slider = ui.slider(min=0, max=1, step=0.01).bind_value(error_rate, 'error_rate')
-        error_rate_value = ui.label().bind_text_from(error_rate, 'error_rate')
+    def run_client_get(self, error_rate: float):
+        message = 'GET'
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
 
-    # Show error rate controls when Get or Push button is clicked
-    def show_error_rate_controls():
-        error_rate.visible = True
+        message = str([self.error_type.value, self.error_rate.value])
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
 
-    get_button.on('click', show_error_rate_controls)
-    push_button.on('click', show_error_rate_controls)
+        r = receive.receive()
+        r.udp_receive(self.client_socket, False, self.error_type.value, self.error_rate.value)
+        self.response_textbox.value += f'GET Response: Test\n'  # Append server response to text box
 
-    # Create a button to execute the Get option
-    def execute_get():
-        run_client_get(error_rate.error_rate)
+    def run_client_push(self, error_rate: float):
+        message = 'PUSH'
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        s = send.send()
+        s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type.value, self.error_rate.value)
+        self.response_textbox.value += f'PUSH Response: Test\n'  # Append server response to text box
 
-    ui.button('Execute Get', on_click=execute_get).bind_visibility_from(error_rate, 'visible')
+    def stop_server(self):
+        message = 'END'
+        self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+        self.client_socket.close()
+        self.response_textbox.value += 'Server stopped.\n'  # Append server stop message to text box
 
-    # Create a button to execute the Push option
-    def execute_push():
-        run_client_push(error_rate.error_rate)
+    def get_control(self):
+        self.error_control(True)
+        self.state = 'get'
 
-    ui.button('Execute Push', on_click=execute_push).bind_visibility_from(error_rate, 'visible')
+    def push_control(self):
+        self.error_control(True)
+        self.state = 'push'
 
-# Run the NiceGUI server
-create_ui()
-ui.run()
+    def execute(self):
+        if self.state == 'get':
+            self.run_client_get(self.error_rate.value)
+        elif self.state == 'push':
+            self.run_client_push(self.error_rate.value)
+
+
+    def error_control(self, value):
+        self.error_rate_label.visible = value
+        self.error_rate.visible = value
+        self.error_rate_value.visible = value
+        self.error_type_name = value
+
+    def create_ui(self):
+        self.response_textbox = ui.textarea(label='Server Responses')
+
+        with ui.row():
+            ui.button('Start Server', on_click=self.run_server)  # Start server now runs in a separate thread
+            ui.button('Send HELLO from Client', on_click=self.run_client_hello)
+            ui.button('Stop Server', on_click=self.stop_server)
+
+        with ui.row():
+            get_button = ui.button('Get', on_click=self.get_control)
+            push_button = ui.button('Push', on_click=self.push_control)
+
+        # Create a label and slider for selecting error rate (only visible when Get or Push)
+        with ui.column():
+            with ui.row():
+                self.error_type = ui.select([1, 2, 3], value=1)
+                self.error_type.visible = False
+                self.error_type_name = ui.select({1: 'No Error', 2: 'Ack Error', 3: 'Data Error'}).bind_value(self.error_type, 'value')
+            self.error_rate_label = ui.label('Select Error Rate')
+            self.error_rate = ui.slider(min=0, max=1, step=0.01)
+            self.error_rate_value = ui.label().bind_text_from(self.error_rate, 'value')
+
+        self.execute = ui.button("Execute", on_click=self.execute)
+
+    def main(self):
+        self.create_ui()
+        port_assignment = p.find_unused_port()
+        ui.run(port=port_assignment)
+
+
+# Needs __mp_main__ for ui.run (must be run in multiprocessor)
+if __name__ in {"__main__", "__mp_main__"}:
+    # functions.main()
+    # units_def.units
+    g = gui()
+    g.main()
