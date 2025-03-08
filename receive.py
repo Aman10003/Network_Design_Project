@@ -5,16 +5,12 @@ import random
 import time
 from PIL import Image
 import error_gen
+import checksums  # Import the checksums module
 
 # # For debug
 # import binascii
 
 class receive:
-    # def compute_parity(self, data):
-    #     """Calculate a simple parity bit: 0 for even 1s, 1 for odd 1s."""
-    #     ones_count = sum(bin(byte).count('1') for byte in data)
-    #     return ones_count % 2  # Returns 0 or 1
-
     def ack_packet(self, index, port, address):
         # Simulate network delay (0-500ms) before sending ACK
         delay = random.uniform(0, 0.5)
@@ -22,14 +18,6 @@ class receive:
 
         ack_packet = struct.pack("!H", index)  # Last valid packet
         port.sendto(ack_packet, address)
-
-    def compute_xor_checksum(self, data):
-        """Calculate a 16-bit XOR checksum."""
-        checksum = 0
-        for byte in data:
-            checksum ^= byte
-            checksum &= 0xFFFF  # Ensure that the checksum stays within 16 bits
-        return checksum
 
     def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float):
         """Receives an image file over UDP using sequence numbers and checksum."""
@@ -44,19 +32,7 @@ class receive:
 
         while True:
             try:
-                # Original Implementation
-                # packet, address = port.recvfrom(4096 + 3)  # Sequence (2 bytes) + data + checksum (1 byte)
-
-                # Second implementation to try and capture whole packet
                 packet, address = port.recvfrom(65535)
-
-                # #Debug Code
-                # # Convert to hex for readability in the text file
-                # hex_data = binascii.hexlify(packet).decode()
-                #
-                # # Append to file with a new line
-                # with open("output_receive.txt", "a") as file:
-                #     file.write(hex_data + "\n")
 
                 # Check for termination signal
                 if packet == b'END':
@@ -64,7 +40,7 @@ class receive:
                     break
 
                 # Ensure packet is large enough to contain a valid sequence number and checksum
-                if len(packet) < 3:
+                if len(packet) < 4:
                     print(">>> Received an incomplete packet! Ignoring...")
                     continue
 
@@ -73,7 +49,7 @@ class receive:
                 data = packet[2:-2]  # Extract the actual image data (excluding the last 2 bytes)
                 received_checksum = struct.unpack("!H", packet[-2:])[0]  # Unpack the last 2 bytes as checksum
 
-                computed_checksum = self.compute_xor_checksum(data)  # Compute checksum from data
+                computed_checksum = checksums.compute_checksum(data)  # Compute checksum from data
                 print(f"Receiver computed checksum: {computed_checksum}, Received checksum: {received_checksum}")
 
                 # Handle checksum error
@@ -85,7 +61,7 @@ class receive:
                         print(f"Resent ACK {expected_seq_num - 1} due to checksum error.")
                     continue
 
-                    # Handle out-of-order packets
+                # Handle out-of-order packets
                 if seq_num != expected_seq_num:
                     print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
                     # Resend the last ACK to indicate the expected sequence number
@@ -122,15 +98,8 @@ class receive:
             sorted_data = b''.join(received_data[i] for i in sorted(received_data.keys()))
             print(f"Total received data size: {len(sorted_data)} bytes")  # Debug print
 
-            # Debugging code
-            # # Save raw received data for inspection
-            # with open("received_data.pkl", "wb") as f:
-            #     f.write(sorted_data)
-            #
-            # print("Saved received data to 'received_data.pkl'. Try manually loading it with pickle.")
-
             # Deserialize the array
-            numpydata = pickle.loads(sorted_data)  # <-- Error occurs here
+            numpydata = pickle.loads(sorted_data)
             print("Deserialization successful.")
 
             # Convert array back to an image and save

@@ -4,36 +4,24 @@ from PIL import Image
 import pickle  # To serialize NumPy array
 import struct  # To attach packet sequence numbers
 import error_gen
+import checksums  # Import the checksums module
 
 # # For debug
 # import binascii
 
-
 class send:
-    # def compute_parity(self, data):
-    #     """Calculate a simple parity bit: 0 for even 1s, 1 for odd 1s."""
-    #     ones_count = sum(bin(byte).count('1') for byte in data)
-    #     return ones_count % 2  # Returns 0 or 1
-
-    def compute_xor_checksum(self, data):
-        """Calculate a 16-bit XOR checksum."""
-        checksum = 0
-        for byte in data:
-            checksum ^= byte
-            checksum &= 0xFFFF  # Ensure that the checksum stays within 16 bits
-        return checksum
     def make_packet(self, data_bytes, packet_size, sequence_number):
         """Creates a packet with sequence number and checksum."""
         start = sequence_number * packet_size
         end = start + packet_size
         chunk = data_bytes[start:end]
 
-        # Compute parity bit
-        xor_checksum = self.compute_xor_checksum(chunk)
-        print(f"Sender computed parity: {xor_checksum}")
+        # Compute checksum
+        checksum = checksums.compute_checksum(chunk)
+        print(f"Sender computed checksum: {checksum}")
 
-        # Attach sequence number (2 bytes) + chunk + checksum (1 byte)
-        return struct.pack("!H", sequence_number) + chunk + struct.pack("!H", xor_checksum)
+        # Attach sequence number (2 bytes) + chunk + checksum (2 bytes)
+        return struct.pack("!H", sequence_number) + chunk + struct.pack("!H", checksum)
 
     def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp'):
         """Sends an image file over UDP with RDT 2.2 (with sequence numbers, checksum, and delay)."""
@@ -64,21 +52,12 @@ class send:
             packet = self.make_packet(data_bytes, packet_size, sequence_number)
             retries = 0
 
-
             while retries < MAX_RETRIES:
                 try:
                     # Error generation (if necessary)
                     packet_modified = packet
                     if error_type == 3:
                         packet_modified = eg.packet_error(packet, error_rate)
-
-                        # # Debug Code
-                        # # Convert to hex for readability in the text file
-                        # hex_data = binascii.hexlify(packet_modified).decode()
-                        #
-                        # # Append to file with a new line
-                        # with open("output_sender.txt", "a") as file:
-                        #     file.write(hex_data + "\n")
 
                     # Send packet
                     port.sendto(packet_modified, dest)
