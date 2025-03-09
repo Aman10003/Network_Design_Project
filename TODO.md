@@ -29,7 +29,7 @@ of a high-quality GUI. If you have any doubts about what this entails or what �
 quality” means in this context, you are more than welcome to display your GUI in office
 hours before the posted due date for advice
 - [ ] Progress bar
-- [ ] Multithreading(Maybe have sender and recieve as its own subprocess)
+- [ ] Multithreading(Maybe have sender and receive as its own subprocess)
 - • The sender should contain:
 -  A sending thread that transmits data packets.
 -  A listener thread that waits for and processes ACKs.
@@ -38,4 +38,4 @@ hours before the posted due date for advice
 -  A response thread to send ACKs back to the sender. \
 Use appropriate synchronization mechanisms (e.g., locks, semaphores, or message
 queues) to ensure thread safety.
-Compare the completion time of single-threaded vs. multi-threaded implementations
+Compare the completion time of single-threaded vs. multithreaded implementations

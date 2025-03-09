@@ -175,3 +175,4 @@ cython_debug/
 *.zip
 server_image.bmp
 push_results.csv
+test.py

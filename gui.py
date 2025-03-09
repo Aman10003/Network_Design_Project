@@ -3,12 +3,13 @@ from nicegui import ui
 import subprocess
 from socket import *
 import sys
-import port as p
+import asyncio
 import threading  # Use threading instead of multiprocessing
 import time
 # Files in the project
 import send
 import receive
+import port as p
 
 
 class gui:
@@ -60,8 +61,6 @@ class gui:
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         s = send.send()
 
-
-
         def send_with_progress():
             total_packets, retransmissions, duplicate_acks = s.udp_send_with_progress(
                 self.client_socket,
@@ -71,10 +70,15 @@ class gui:
                 self.update_progress
             )
 
-            ui.notify(f"Transfer Completed: {total_packets} packets sent!")
-            self.progress_bar.set_value(1.0)  # Set progress to 100%
+            # Schedule notify_completion in the main event loop
+            ui.run(self.notify_completion(total_packets))
 
         threading.Thread(target=send_with_progress, daemon=True).start()
+
+    async def notify_completion(self, total_packets):
+        """Notify UI when transfer is complete"""
+        ui.notify(f"Transfer Completed: {total_packets} packets sent!")
+        self.progress_bar.set_value(1.0)  # Set progress to 100%
 
     def update_progress(self, progress, retransmissions, duplicate_acks):
         """Update UI dynamically."""
