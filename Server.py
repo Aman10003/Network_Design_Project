@@ -44,18 +44,21 @@ class Server:
                 except Exception as e:
                     print(f"Error while handling 'GET' request: {e}")
 
-
             elif message == 'PUSH':
                 print("Received 'PUSH' request from client.")
                 try:
-                    # Default error values in case PUSH does not send error settings
-                    error_type = 1  # Default: No Error
-                    error_rate = 0.0  # Default: 0% Error
+                    error_message, clientAddress = serverSocket.recvfrom(1024)  # Buffer size of 1024 bytes
+                    decoded_message = error_message.decode()
+                    received_list = ast.literal_eval(decoded_message)  # Safely parse the list
+                    error_type = received_list[0]
+                    error_rate = received_list[1]
+                    print(f"Received error_type: {error_type}, error_rate: {error_rate}")  # Debugging print
+
+                    # Receive data based on error type and rate
                     r = receive.receive()
                     r.udp_receive(serverSocket, True, error_type, error_rate)
                 except Exception as e:
                     print(f"Error while handling 'PUSH' request: {e}")
-
 
             elif message == 'END':
                 print("Ending communication, closing server.")

@@ -2,7 +2,6 @@ from socket import *
 import receive
 import send
 
-
 class Client:
     def __init__(self):
         self.server_name = 'localhost'
@@ -15,13 +14,13 @@ class Client:
         while True:
             try:
                 self.error_type = int(input(
-                    "Option 1 - No loss/bit-errors. Option 2 - ACK packet bit-error. Option 3 - Data packet bit-error: "))
-                if self.error_type in [1, 2, 3]:
+                    "Option 1 - No loss/bit-errors. Option 2 - ACK packet bit-error. Option 3 - Data packet bit-error. Option 4 - ACK packet loss. Option 5 - Data packet loss: "))
+                if self.error_type in [1, 2, 3, 4, 5]:
                     break
                 else:
-                    print("Invalid option. Please enter 1, 2, or 3.")
+                    print("Invalid option. Please enter 1, 2, 3, 4, or 5.")
             except ValueError:
-                print("Invalid input. Please enter a number (1, 2, or 3).")
+                print("Invalid input. Please enter a number (1, 2, 3, 4, or 5).")
 
         if self.error_type != 1:
             while True:
@@ -83,7 +82,6 @@ class Client:
                 break
             else:
                 print("Invalid option. Please enter H, G, P, or E.")
-
 
 if __name__ == '__main__':
     c = Client()

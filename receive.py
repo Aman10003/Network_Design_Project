@@ -7,9 +7,6 @@ from PIL import Image
 import error_gen
 import checksums  # Import the checksums module
 
-# # For debug
-# import binascii
-
 class receive:
     def ack_packet(self, index, port, address):
         # Simulate network delay (0-500ms) before sending ACK
@@ -68,6 +65,11 @@ class receive:
                     if expected_seq_num > 0:
                         self.ack_packet(expected_seq_num - 1, port, address)
                         print(f"Resent ACK {expected_seq_num - 1} due to out-of-order packet.")
+                    continue
+
+                # Simulate data packet loss
+                if error_type == 5 and random.random() < error_rate:
+                    print(f">>> Simulating data packet loss for packet {seq_num}.")
                     continue
 
                 # Otherwise, packet is valid.

@@ -7,9 +7,6 @@ import error_gen
 import time
 import checksums  # Import the checksums module
 
-# # For debug
-# import binascii
-
 class send:
     def make_packet(self, data_bytes, packet_size, sequence_number):
         """Creates a packet with sequence number and checksum."""
@@ -41,7 +38,7 @@ class send:
 
         print(f"Sending {total_packets} packets...")
 
-        port.settimeout(1.0)  # 1-second timeout for ACK reception
+        port.settimeout(0.05)  # 50ms timeout for ACK reception
 
         sequence_number = 0
         MAX_RETRIES = 20
@@ -95,4 +92,3 @@ class send:
         print("Image data sent successfully!")
 
         return total_packets, retransmissions, duplicate_acks
-
