@@ -59,9 +59,13 @@ class send:
                     if error_type == 3:
                         packet_modified = eg.packet_error(packet, error_rate)
 
-                    # Send packet
-                    port.sendto(packet_modified, dest)
-                    print(f"Sent packet {sequence_number}")
+                    # Simulate data packet loss
+                    if error_type == 5 and random.random() < error_rate:
+                        print(f">>> Simulating data packet loss for packet {sequence_number}.")
+                    else:
+                        # Send packet
+                        port.sendto(packet_modified, dest)
+                        print(f"Sent packet {sequence_number}")
 
                     # Wait for ACK
                     ack_packet, _ = port.recvfrom(2)  # Expect a 2-byte ACK
