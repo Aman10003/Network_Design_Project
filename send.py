@@ -97,8 +97,7 @@ class send:
 
     # For non gui_implementation
     def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp'):
-        """Sends an image file over UDP with RDT 2.2 (with sequence numbers, checksum, and delay)."""
-        # Load the image and convert into numpy array
+        """Sends an image file over UDP with RDT 3.0."""
         img = Image.open(image)
         numpydata = np.asarray(img)
 
@@ -108,37 +107,33 @@ class send:
         # Initialized error_gen
         eg = error_gen.error_gen()
 
-        # Define packet size (UDP has a limit; we keep it smaller for safety)
         packet_size = 4096
         total_packets = len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
 
         print(f"Sending {total_packets} packets...")
 
-        port.settimeout(1.0)  # 1 second timeout for ACK reception
+        port.settimeout(0.05)  # 50ms timeout for ACK reception
 
-        # Increases sequence number for each packet
         sequence_number = 0
-        MAX_RETRIES = 20  # Define a retransmission limit
+        MAX_RETRIES = 20
 
-        # Send packets
-        for i in range(total_packets):
+        retransmissions = 0  # Count packet retransmissions
+        duplicate_acks = 0  # Count duplicate ACKs
+
+        while sequence_number < total_packets:
             packet = self.make_packet(data_bytes, packet_size, sequence_number)
             retries = 0
 
             while retries < MAX_RETRIES:
                 try:
-                    # Error generation (if necessary)
+                    # Introduce packet errors if needed
                     packet_modified = packet
                     if error_type == 3:
                         packet_modified = eg.packet_error(packet, error_rate)
 
-                    # Simulate data packet loss
-                    if error_type == 5 and random.random() < error_rate:
-                        print(f">>> Simulating data packet loss for packet {i}.")
-                    else:
-                        # Send packet
-                        port.sendto(packet_modified, dest)
-                        print(f"Sent packet {sequence_number}")
+                    # Send packet
+                    port.sendto(packet_modified, dest)
+                    print(f"Sent packet {sequence_number}")
 
                     # Wait for ACK
                     ack_packet, _ = port.recvfrom(2)  # Expect a 2-byte ACK
@@ -146,18 +141,24 @@ class send:
 
                     if ack_num == sequence_number:
                         print(f"ACK {ack_num} received. Sending next packet.")
-                        sequence_number += 1
-                        break  # Exit the retry loop
+                        sequence_number += 1  # Only increment on correct ACK
+
+                        break  # Exit retry loop
                     else:
+                        duplicate_acks += 1  # Track duplicate ACKs
                         print(f"Incorrect ACK {ack_num}. Retransmitting packet {sequence_number}...")
+
                 except timeout:
                     retries += 1
+                    retransmissions += 1  # Track retransmissions
                     print(f"Timeout for packet {sequence_number}. Retries: {retries}")
 
             if retries == MAX_RETRIES:
                 print(f"Failed to send packet {sequence_number} after {MAX_RETRIES} retries.")
-                return
+                return total_packets, retransmissions, duplicate_acks
 
         # Send termination signal
         port.sendto(b'END', dest)
         print("Image data sent successfully!")
+
+        return total_packets, retransmissions, duplicate_acks
