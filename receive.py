@@ -68,7 +68,7 @@ class receive:
                     continue
 
                 # Simulate data packet loss
-                if error_type == 5 and random.random() < error_rate:
+                if error_type == 4 and random.random() < error_rate:
                     print(f">>> Simulating data packet loss for packet {seq_num}.")
                     continue
 
