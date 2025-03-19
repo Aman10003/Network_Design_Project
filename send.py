@@ -100,6 +100,14 @@ class send:
         return total_packets, retransmissions, duplicate_acks
 
     # For non gui_implementation
+    def adjust_packet_size(self, current_size, loss_rate, ack_delay):
+        """Adjust packet size based on loss rate and ACK delay."""
+        if loss_rate > 0.1 or ack_delay > 0.1:
+            return max(1024, current_size // 2)  # Reduce packet size
+        elif loss_rate < 0.01 and ack_delay < 0.05:
+            return min(8192, current_size * 2)  # Increase packet size
+        return current_size
+
     def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp'):
         """Sends an image file over UDP with RDT 3.0."""
         img = Image.open(image)
@@ -146,6 +154,11 @@ class send:
                     if ack_num == sequence_number:
                         print(f"ACK {ack_num} received. Sending next packet.")
                         sequence_number += 1  # Only increment on correct ACK
+
+                        # Adjust packet size based on network conditions
+                        loss_rate = retransmissions / (sequence_number + 1)
+                        ack_delay = port.gettimeout()
+                        packet_size = self.adjust_packet_size(packet_size, loss_rate, ack_delay)
 
                         break  # Exit retry loop
                     else:
