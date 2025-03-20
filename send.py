@@ -31,7 +31,7 @@ class send:
             return min(8192, current_size * 2)  # Increase packet size
         return current_size
 
-    def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp'):
+    def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp', update_ui_callback = None):
         """Sends an image file over UDP with RDT 3.0 and adaptive timeout."""
         img = Image.open(image)
         numpydata = np.asarray(img)
@@ -84,7 +84,10 @@ class send:
                         print(f"Sent packet {sequence_number}")
 
                     # Wait for ACK
-                    port.settimeout(ERTT + 4 * DevRTT)  # Adaptive timeout
+                    # port.settimeout(ERTT + 4 * DevRTT)  # Adaptive timeout
+                    port.settimeout(0.5)  # Non-adaptive timeout. Adaptive timeout doesn't work
+
+                    print(f"Timeout is now {ERTT + 4 * DevRTT}")
                     ack_packet, _ = port.recvfrom(2)  # 2-byte ACK
                     end_time = time.time()
 
@@ -100,6 +103,11 @@ class send:
                     if ack_num == sequence_number:
                         print(f"ACK {ack_num} received. Sending next packet.")
                         sequence_number += 1  # Only increment on correct ACK
+
+                        if update_ui_callback is not None:
+                            # Update UI progress **only after successful transmission**
+                            progress = sequence_number / total_packets
+                            update_ui_callback(progress, retransmissions, duplicate_acks)
 
                         # Calculate RTT and update ERTT and DevRTT
                         RTT = end_time - start_time

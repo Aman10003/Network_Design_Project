@@ -25,6 +25,12 @@ class gui:
         self.error_rate_label = None
         self.error_type_name = None
 
+        self.retrans_overhead_label = None
+        self.ack_eff_label = None
+        self.dup_ack_label = None
+        self.retrans_label = None
+        self.progress_bar = None
+
     def run_server(self):
         # Creating a separate thread for running the server
         server_thread = threading.Thread(target=self.start_server)
@@ -61,17 +67,23 @@ class gui:
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         s = send.send()
 
+        # Create a lock object
+        socket_lock = threading.Lock()
+
         def send_with_progress():
-            total_packets, retransmissions, duplicate_acks = s.udp_send(
+            total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead = s.udp_send(
                 self.client_socket,
                 (self.server_name, self.server_port),
                 self.error_type.value,
                 self.error_rate.value,
-                # self.update_progress
+                # update_ui_callback=self.update_progress
             )
+            ui.run(lambda: self.update_progress(1, retransmissions, duplicate_acks, ack_efficiency,retransmission_overhead))
 
+            self.update_progress(1, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead)
             # Schedule notify_completion in the main event loop
             ui.run(self.notify_completion(total_packets))
+
 
         threading.Thread(target=send_with_progress, daemon=True).start()
 
@@ -80,11 +92,13 @@ class gui:
         ui.notify(f"Transfer Completed: {total_packets} packets sent!")
         self.progress_bar.set_value(1.0)  # Set progress to 100%
 
-    def update_progress(self, progress, retransmissions, duplicate_acks):
+    def update_progress(self, progress, retransmissions, duplicate_acks, ack_efficiency=0, retransmission_overhead=0):
         """Update UI dynamically."""
         self.progress_bar.set_value(progress)
         self.retrans_label.set_text(f"Retransmissions: {retransmissions}")
         self.dup_ack_label.set_text(f"Duplicate ACKs: {duplicate_acks}")
+        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f}")
+        self.retrans_overhead_label.set_text(f"Retransmission Overhead: {retransmission_overhead:.2f}")
 
     def stop_server(self):
         message = 'END'
@@ -141,6 +155,8 @@ class gui:
         with ui.row():
             self.retrans_label = ui.label("Retransmissions: 0")
             self.dup_ack_label = ui.label("Duplicate ACKs: 0")
+            self.ack_eff_label = ui.label("ACK Efficiency: 0.00")
+            self.retrans_overhead_label = ui.label("Retransmission Overhead: 0.00")
 
     def main(self):
         self.create_ui()
