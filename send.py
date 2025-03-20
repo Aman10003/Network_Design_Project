@@ -135,6 +135,9 @@ class send:
 
         retransmissions = 0  # Count packet retransmissions
         duplicate_acks = 0  # Count duplicate ACKs
+        total_acks_received = 0  # Track total ACKs received
+        unique_acks_received = set()  # Track unique ACKs received
+        total_acks_sent = 0  # Initialize total ACKs sent
 
         while sequence_number < total_packets:
             packet = self.make_packet(data_bytes, packet_size, sequence_number)
@@ -158,6 +161,13 @@ class send:
                     end_time = time.time()
 
                     ack_num = struct.unpack("!H", ack_packet)[0]
+                    total_acks_received += 1  # Track total ACKs received
+                    total_acks_sent += 1  # Increment total ACKs sent for efficiency metric
+
+                    if ack_num not in unique_acks_received:
+                        unique_acks_received.add(ack_num)
+                    else:
+                        duplicate_acks += 1  # Count duplicate ACKs
 
                     if ack_num == sequence_number:
                         print(f"ACK {ack_num} received. Sending next packet.")
@@ -169,6 +179,7 @@ class send:
                         DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
 
                         break  # Exit retry loop
+
                     else:
                         duplicate_acks += 1  # Track duplicate ACKs
                         print(f"Incorrect ACK {ack_num}. Retransmitting packet {sequence_number}...")
@@ -182,8 +193,18 @@ class send:
                 print(f"Failed to send packet {sequence_number} after {MAX_RETRIES} retries.")
                 return total_packets, retransmissions, duplicate_acks
 
+
         # Send termination signal
         port.sendto(b'END', dest)
         print("Image data sent successfully!")
 
-        return total_packets, retransmissions, duplicate_acks
+        # Compute efficiency metrics
+        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
+        retransmission_overhead = (retransmissions / total_packets) * 100 if total_packets > 0 else 0
+
+        print("\n===== Performance Metrics =====")
+        print(f"ACK Efficiency: {ack_efficiency:.2f}%")
+        print(f"Retransmission Overhead: {retransmission_overhead:.2f}%")
+        print("================================\n")
+
+        return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead

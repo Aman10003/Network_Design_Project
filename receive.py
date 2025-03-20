@@ -8,6 +8,11 @@ import error_gen
 import checksums  # Import the checksums module
 
 class receive:
+    def __init__(self):
+        """Initialize tracking variables to avoid AttributeError."""
+        self.total_acks_sent = 0  # Ensure this variable is initialized
+        self.unique_acks_sent = set()  # Also initialize unique ACK tracking
+
     def ack_packet(self, index, port, address):
         # Simulate network delay (0-500ms) before sending ACK
         delay = random.uniform(0, 0.5)
@@ -15,6 +20,17 @@ class receive:
 
         ack_packet = struct.pack("!H", index)  # Last valid packet
         port.sendto(ack_packet, address)
+
+        #Ensure variables exist before modifying them
+        if not hasattr(self, 'total_acks_sent'):
+            self.total_acks_sent = 0
+        if not hasattr(self, 'unique_acks_sent'):
+            self.unique_acks_sent = set()
+
+        # Track ACK statistics
+        self.total_acks_sent += 1
+        self.unique_acks_sent.add(index)
+        print(f"Sent ACK {index}, Delay: {round(delay * 1000, 2)}ms")
 
     def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float):
         """Receives an image file over UDP using sequence numbers and checksum."""
@@ -59,13 +75,11 @@ class receive:
                     continue
 
                 # Handle out-of-order packets
-                if seq_num != expected_seq_num:
-                    print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
-                    # Resend the last ACK to indicate the expected sequence number
-                    if expected_seq_num > 0:
-                        self.ack_packet(expected_seq_num - 1, port, address)
-                        print(f"Resent ACK {expected_seq_num - 1} due to out-of-order packet.")
-                    continue
+                    if seq_num != expected_seq_num:
+                        print(
+                            f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Sending ACK for last valid packet.")
+                        self.ack_packet(expected_seq_num - 1, port, address)  # Request the correct packet
+                        continue  # Do not process out-of-order packets
 
                 # Simulate data packet loss
                 if error_type == 4 and random.random() < error_rate:
@@ -84,12 +98,18 @@ class receive:
                 time.sleep(delay)
 
                 # Send ACK back to the sender
-                ack_packet = struct.pack("!H", seq_num)
+                ack_packet = struct.pack("!H", expected_seq_num - 1)
+
                 # ACK packet error
                 if error_type == 2:
                     ack_packet = eg.packet_error(ack_packet, error_rate)
 
                 port.sendto(ack_packet, address)
+
+                # Track ACK statistics
+                self.total_acks_sent += 1
+                self.unique_acks_sent.add(seq_num)
+
                 print(f"Sent ACK {seq_num}, Delay: {round(delay * 1000, 2)}ms")
 
             except Exception as e:
@@ -116,3 +136,12 @@ class receive:
             print(f"Unpickling error: {e}")
         except Exception as e:
             print(f"Unexpected error during image reconstruction: {e}")
+
+            # Compute and display ACK Efficiency
+            ack_efficiency = (
+                                         len(self.unique_acks_sent) / self.total_acks_sent) * 100 if self.total_acks_sent > 0 else 0
+            print("\n===== Performance Metrics =====")
+            print(f"Total ACKs Sent: {self.total_acks_sent}")
+            print(f"Unique ACKs Sent: {len(self.unique_acks_sent)}")
+            print(f"ACK Efficiency: {ack_efficiency:.2f}%")
+            print("================================\n")
