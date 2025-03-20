@@ -62,12 +62,12 @@ class gui:
         s = send.send()
 
         def send_with_progress():
-            total_packets, retransmissions, duplicate_acks = s.udp_send_with_progress(
+            total_packets, retransmissions, duplicate_acks = s.udp_send(
                 self.client_socket,
                 (self.server_name, self.server_port),
                 self.error_type.value,
                 self.error_rate.value,
-                self.update_progress
+                # self.update_progress
             )
 
             # Schedule notify_completion in the main event loop
@@ -127,9 +127,9 @@ class gui:
         # Create a label and slider for selecting error rate (only visible when Get or Push)
         with ui.column():
             with ui.row():
-                self.error_type = ui.select([1, 2, 3], value=1)
+                self.error_type = ui.select([1, 2, 3, 4, 5], value=1)
                 self.error_type.visible = False
-                self.error_type_name = ui.select({1: 'No Error', 2: 'Ack Error', 3: 'Data Error'}).bind_value(self.error_type, 'value')
+                self.error_type_name = ui.select({1: 'No Error', 2: 'Ack Error', 3: 'Data Error', 4: 'Ack Lost', 5: 'Data Lost'}).bind_value(self.error_type, 'value')
             self.error_rate_label = ui.label('Select Error Rate')
             self.error_rate = ui.slider(min=0, max=1, step=0.01, value=0)
             self.error_rate_value = ui.label().bind_text_from(self.error_rate, 'value')

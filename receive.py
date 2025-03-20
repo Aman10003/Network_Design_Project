@@ -75,11 +75,13 @@ class receive:
                     continue
 
                 # Handle out-of-order packets
-                    if seq_num != expected_seq_num:
-                        print(
-                            f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Sending ACK for last valid packet.")
-                        self.ack_packet(expected_seq_num - 1, port, address)  # Request the correct packet
-                        continue  # Do not process out-of-order packets
+                if seq_num != expected_seq_num:
+                    print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
+                    # Resend the last ACK to indicate the expected sequence number
+                    if expected_seq_num > 0:
+                        self.ack_packet(expected_seq_num - 1, port, address)
+                        print(f"Resent ACK {expected_seq_num - 1} due to out-of-order packet.")
+                    continue
 
                 # Simulate data packet loss
                 if error_type == 4 and random.random() < error_rate:
