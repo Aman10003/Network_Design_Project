@@ -138,8 +138,7 @@ class receive:
             print(f"Unexpected error during image reconstruction: {e}")
 
             # Compute and display ACK Efficiency
-            ack_efficiency = (
-                                         len(self.unique_acks_sent) / self.total_acks_sent) * 100 if self.total_acks_sent > 0 else 0
+            ack_efficiency = (len(self.unique_acks_sent) / self.total_acks_sent) * 100 if self.total_acks_sent > 0 else 0
             print("\n===== Performance Metrics =====")
             print(f"Total ACKs Sent: {self.total_acks_sent}")
             print(f"Unique ACKs Sent: {len(self.unique_acks_sent)}")
