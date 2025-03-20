@@ -32,7 +32,7 @@ class send:
         return current_size
 
     def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp'):
-        """Sends an image file over UDP with RDT 3.0 and adaptive timeout."""
+        """Sends an image file over UDP with RDT 3.0."""
         img = Image.open(image)
         numpydata = np.asarray(img)
 
@@ -47,11 +47,7 @@ class send:
 
         print(f"Sending {total_packets} packets...")
 
-        # Initial timeout values
-        ERTT = 0.05  # Estimated RTT
-        DevRTT = 0.01  # Deviation of RTT
-        alpha = 0.125
-        beta = 0.25
+        port.settimeout(0.05)  # 50ms timeout for ACK reception
 
         sequence_number = 0
         MAX_RETRIES = 20
@@ -71,25 +67,21 @@ class send:
                         packet_modified = eg.packet_error(packet, error_rate)
 
                     # Send packet
-                    start_time = time.time()
                     port.sendto(packet_modified, dest)
                     print(f"Sent packet {sequence_number}")
 
                     # Wait for ACK
-                    port.settimeout(ERTT + 4 * DevRTT)  # Adaptive timeout
-                    ack_packet, _ = port.recvfrom(2)  # 2-byte ACK
-                    end_time = time.time()
-
+                    ack_packet, _ = port.recvfrom(2)  # Expect a 2-byte ACK
                     ack_num = struct.unpack("!H", ack_packet)[0]
 
                     if ack_num == sequence_number:
                         print(f"ACK {ack_num} received. Sending next packet.")
                         sequence_number += 1  # Only increment on correct ACK
 
-                        # Calculate RTT and update ERTT and DevRTT
-                        RTT = end_time - start_time
-                        ERTT = (1 - alpha) * ERTT + alpha * RTT
-                        DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
+                        # Adjust packet size based on network conditions
+                        loss_rate = retransmissions / (sequence_number + 1)
+                        ack_delay = port.gettimeout()
+                        packet_size = self.adjust_packet_size(packet_size, loss_rate, ack_delay)
 
                         break  # Exit retry loop
                     else:
