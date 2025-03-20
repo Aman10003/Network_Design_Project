@@ -62,12 +62,12 @@ class gui:
         s = send.send()
 
         def send_with_progress():
-            total_packets, retransmissions, duplicate_acks = s.udp_send_with_progress(
+            total_packets, retransmissions, duplicate_acks = s.udp_send(
                 self.client_socket,
                 (self.server_name, self.server_port),
                 self.error_type.value,
                 self.error_rate.value,
-                self.update_progress
+                # self.update_progress
             )
 
             # Schedule notify_completion in the main event loop
