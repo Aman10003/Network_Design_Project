@@ -31,8 +31,8 @@ class send:
             return min(8192, current_size * 2)  # Increase packet size
         return current_size
 
-    def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp', update_ui_callback = None):
-        """Sends an image file over UDP with RDT 3.0 and adaptive timeout."""
+    def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp', window_size: int = 10):
+        """Sends an image file over UDP using Go-Back-N protocol."""
         img = Image.open(image)
         numpydata = np.asarray(img)
 
@@ -45,102 +45,71 @@ class send:
         packet_size = 4096
         total_packets = len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
 
-        print(f"Sending {total_packets} packets...")
+        print(f"Sending {total_packets} packets using Go-Back-N with window size {window_size}...")
 
-        # Initial timeout values
-        ERTT = 0.05  # Estimated RTT
-        DevRTT = 0.01  # Deviation of RTT
-        alpha = 0.125
-        beta = 0.25
-
-        sequence_number = 0
+        # Initialize variables for Go-Back-N
+        base = 0
+        next_seq_num = 0
+        window = {}  # Store packets in the current window
         MAX_RETRIES = 20
+        retransmissions = 0
+        duplicate_acks = 0
 
-        retransmissions = 0  # Count packet retransmissions
-        duplicate_acks = 0  # Count duplicate ACKs
-        total_acks_received = 0  # Track total ACKs received
-        unique_acks_received = set()  # Track unique ACKs received
-        total_acks_sent = 0  # Initialize total ACKs sent
+        # Create all packets upfront
+        packets = [self.make_packet(data_bytes, packet_size, i) for i in range(total_packets)]
 
-        while sequence_number < total_packets:
-            packet = self.make_packet(data_bytes, packet_size, sequence_number)
-            retries = 0
+        while base < total_packets:
+            # Send packets within the window
+            while next_seq_num < base + window_size and next_seq_num < total_packets:
+                packet = packets[next_seq_num]
 
-            while retries < MAX_RETRIES:
-                try:
-                    # Introduce packet errors if needed
-                    packet_modified = packet
-                    if error_type == 3:
-                        packet_modified = eg.packet_error(packet, error_rate)
+                # Simulate packet errors if needed
+                if error_type == 3:
+                    packet = eg.packet_error(packet, error_rate)
 
-                    start_time = time.time()
+                # Simulate packet loss
+                if error_type == 5 and random.random() < error_rate:
+                    print(f">>> Simulating data packet loss for packet {next_seq_num}.")
+                else:
+                    port.sendto(packet, dest)
+                    print(f"Sent packet {next_seq_num}")
 
-                    # Simulate data packet loss
-                    if error_type == 5 and random.random() < error_rate:
-                        print(f">>> Simulating data packet loss for packet {sequence_number}.")
-                    else:
-                        # Send packet
-                        port.sendto(packet_modified, dest)
-                        print(f"Sent packet {sequence_number}")
+                window[next_seq_num] = time.time()  # Track send time
+                next_seq_num += 1
 
-                    # Wait for ACK
-                    # port.settimeout(ERTT + 4 * DevRTT)  # Adaptive timeout
-                    port.settimeout(0.5)  # Non-adaptive timeout. Adaptive timeout doesn't work
+            try:
+                # Wait for ACK
+                port.settimeout(0.5)  # Timeout for ACK
+                ack_packet, _ = port.recvfrom(2)  # 2-byte ACK
+                ack_num = struct.unpack("!H", ack_packet)[0]
 
-                    print(f"Timeout is now {ERTT + 4 * DevRTT}")
-                    ack_packet, _ = port.recvfrom(2)  # 2-byte ACK
-                    end_time = time.time()
+                if ack_num >= base:
+                    print(f"Received ACK {ack_num}")
+                    base = ack_num + 1  # Slide the window
+                    # Remove acknowledged packets from the window
+                    for seq in list(window.keys()):
+                        if seq <= ack_num:
+                            del window[seq]
+                else:
+                    duplicate_acks += 1
+                    print(f"Duplicate ACK {ack_num} received.")
 
-                    ack_num = struct.unpack("!H", ack_packet)[0]
-                    total_acks_received += 1  # Track total ACKs received
-                    total_acks_sent += 1  # Increment total ACKs sent for efficiency metric
-
-                    if ack_num not in unique_acks_received:
-                        unique_acks_received.add(ack_num)
-                    else:
-                        duplicate_acks += 1  # Count duplicate ACKs
-
-                    if ack_num == sequence_number:
-                        print(f"ACK {ack_num} received. Sending next packet.")
-                        sequence_number += 1  # Only increment on correct ACK
-
-                        if update_ui_callback is not None:
-                            # Update UI progress **only after successful transmission**
-                            progress = sequence_number / total_packets
-                            update_ui_callback(progress, retransmissions, duplicate_acks)
-
-                        # Calculate RTT and update ERTT and DevRTT
-                        RTT = end_time - start_time
-                        ERTT = (1 - alpha) * ERTT + alpha * RTT
-                        DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
-
-                        break  # Exit retry loop
-
-                    else:
-                        duplicate_acks += 1  # Track duplicate ACKs
-                        print(f"Incorrect ACK {ack_num}. Retransmitting packet {sequence_number}...")
-
-                except timeout:
-                    retries += 1
-                    retransmissions += 1  # Track retransmissions
-                    print(f"Timeout for packet {sequence_number}. Retries: {retries}")
-
-            if retries == MAX_RETRIES:
-                print(f"Failed to send packet {sequence_number} after {MAX_RETRIES} retries.")
-                return total_packets, retransmissions, duplicate_acks
-
+            except timeout:
+                # Timeout: Resend all packets in the window
+                print(f"Timeout! Resending packets from {base} to {next_seq_num - 1}")
+                retransmissions += 1
+                for seq in range(base, next_seq_num):
+                    packet = packets[seq]
+                    port.sendto(packet, dest)
 
         # Send termination signal
         port.sendto(b'END', dest)
         print("Image data sent successfully!")
 
         # Compute efficiency metrics
-        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
-        retransmission_overhead = (retransmissions / total_packets) * 100 if total_packets > 0 else 0
-
+        ack_efficiency = (total_packets / (total_packets + retransmissions)) * 100
         print("\n===== Performance Metrics =====")
         print(f"ACK Efficiency: {ack_efficiency:.2f}%")
-        print(f"Retransmission Overhead: {retransmission_overhead:.2f}%")
+        print(f"Retransmissions: {retransmissions}")
+        print(f"Duplicate ACKs: {duplicate_acks}")
         print("================================\n")
-
-        return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead

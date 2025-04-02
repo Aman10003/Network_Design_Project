@@ -29,18 +29,19 @@ class Server:
 
             elif message == 'GET':
                 print("Received 'GET' request from client.")
-                # Waiting for error type and error rate (assuming this is part of the GET request)
+                # Waiting for error type, error rate, and window size
                 try:
                     error_message, clientAddress = serverSocket.recvfrom(1024)  # Buffer size of 1024 bytes
                     decoded_message = error_message.decode()
                     received_list = ast.literal_eval(decoded_message)  # Safely parse the list
                     error_type = received_list[0]
                     error_rate = received_list[1]
-                    print(f"Received error_type: {error_type}, error_rate: {error_rate}")  # Debugging print
+                    window_size = received_list[2]
+                    print(f"Received error_type: {error_type}, error_rate: {error_rate}, window_size: {window_size}")  # Debugging print
 
-                    # Send data based on error type and rate
+                    # Send data based on error type, rate, and window size
                     s = send.send()
-                    s.udp_send(serverSocket, clientAddress, error_type, error_rate)
+                    s.udp_send(serverSocket, clientAddress, error_type, error_rate, window_size=window_size)
                 except Exception as e:
                     print(f"Error while handling 'GET' request: {e}")
 
@@ -52,11 +53,12 @@ class Server:
                     received_list = ast.literal_eval(decoded_message)  # Safely parse the list
                     error_type = received_list[0]
                     error_rate = received_list[1]
-                    print(f"Received error_type: {error_type}, error_rate: {error_rate}")  # Debugging print
+                    window_size = received_list[2]
+                    print(f"Received error_type: {error_type}, error_rate: {error_rate}, window_size: {window_size}")  # Debugging print
 
-                    # Receive data based on error type and rate
+                    # Receive data based on error type, rate, and window size
                     r = receive.receive()
-                    r.udp_receive(serverSocket, True, error_type, error_rate)
+                    r.udp_receive(serverSocket, True, error_type, error_rate, window_size=window_size)
                 except Exception as e:
                     print(f"Error while handling 'PUSH' request: {e}")
 
