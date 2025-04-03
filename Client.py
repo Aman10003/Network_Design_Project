@@ -9,7 +9,6 @@ class Client:
         self.client_socket = socket(AF_INET, SOCK_DGRAM)
         self.error_type = 1
         self.error_rate = 0
-        self.window_size = 10  # Default window size for Go-Back-N
 
     def error_selection(self):
         while True:
@@ -36,17 +35,6 @@ class Client:
         else:
             self.error_rate = 0
 
-        # Allow user to set the window size
-        while True:
-            try:
-                self.window_size = int(input("Enter window size for Go-Back-N (default is 10): ") or 10)
-                if self.window_size > 0:
-                    break
-                else:
-                    print("Window size must be a positive integer.")
-            except ValueError:
-                print("Invalid input. Please enter a positive integer.")
-
     def say_hello(self):
         message = 'HELLO'
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
@@ -57,23 +45,23 @@ class Client:
         message = 'GET'
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         self.error_selection()
-        message = str([self.error_type, self.error_rate, self.window_size])
+        message = str([self.error_type, self.error_rate])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         r = receive.receive()
-        r.udp_receive(self.client_socket, False, self.error_type, self.error_rate, self.window_size)
+        r.udp_receive(self.client_socket, False, self.error_type, self.error_rate)
 
     def push_file(self):
         message = 'PUSH'
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         self.error_selection()
-        message = str([self.error_type, self.error_rate, self.window_size])
+        message = str([self.error_type, self.error_rate])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         file_loc = input("If you want a custom file, input now else press enter: ").strip()
         s = send.send()
         if file_loc == '':
-            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate, window_size=self.window_size)
+            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate)
         else:
-            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate, file_loc, window_size=self.window_size)
+            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate, file_loc)
 
     def end_communication(self):
         message = 'END'

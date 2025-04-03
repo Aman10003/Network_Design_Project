@@ -32,8 +32,8 @@ class receive:
         self.unique_acks_sent.add(index)
         print(f"Sent ACK {index}, Delay: {round(delay * 1000, 2)}ms")
 
-    def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float, window_size: int = 10):
-        """Receives an image file over UDP using Go-Back-N protocol."""
+    def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float):
+        """Receives an image file over UDP using sequence numbers and checksum."""
         print('The server is ready to receive image data' if server else 'The client is ready to receive image data')
 
         received_data = {}
@@ -68,6 +68,10 @@ class receive:
                 # Handle checksum error
                 if received_checksum != computed_checksum:
                     print(f">>> Checksum error in packet {seq_num}! Discarding...")
+                    # Resend the last ACK for the previous packet
+                    if expected_seq_num > 0:
+                        self.ack_packet(expected_seq_num - 1, port, address)
+                        print(f"Resent ACK {expected_seq_num - 1} due to checksum error.")
                     continue
 
                 # Handle out-of-order packets
@@ -76,6 +80,12 @@ class receive:
                     # Resend the last ACK to indicate the expected sequence number
                     if expected_seq_num > 0:
                         self.ack_packet(expected_seq_num - 1, port, address)
+                        print(f"Resent ACK {expected_seq_num - 1} due to out-of-order packet.")
+                    continue
+
+                # Simulate data packet loss
+                if error_type == 4 and random.random() < error_rate:
+                    print(f">>> Simulating data packet loss for packet {seq_num}.")
                     continue
 
                 # Otherwise, packet is valid.
@@ -85,28 +95,54 @@ class receive:
                 # Update the expected sequence number for the next packet
                 expected_seq_num += 1
 
-                # Send cumulative ACK for the last correctly received packet
+                # Simulate network delay (0-500ms) before sending ACK
+                delay = random.uniform(0, 0.5)
+                time.sleep(delay)
+
+                # Send ACK back to the sender
                 ack_packet = struct.pack("!H", expected_seq_num - 1)
 
-                # Simulate ACK packet loss
-                if error_type == 4 and random.random() < error_rate:
-                    print(f">>> Simulating ACK packet loss for ACK {expected_seq_num - 1}.")
-                    continue
+                # ACK packet error
+                if error_type == 2:
+                    ack_packet = eg.packet_error(ack_packet, error_rate)
 
                 port.sendto(ack_packet, address)
-                print(f"Sent ACK {expected_seq_num - 1}")
+
+                # Track ACK statistics
+                self.total_acks_sent += 1
+                self.unique_acks_sent.add(seq_num)
+
+                print(f"Sent ACK {seq_num}, Delay: {round(delay * 1000, 2)}ms")
 
             except Exception as e:
                 print(f"Error receiving packet: {e}")
 
         # Reassemble the full image byte stream in order
-        sorted_data = b''.join(received_data[i] for i in sorted(received_data.keys()))
-        numpydata = pickle.loads(sorted_data)
+        try:
+            sorted_data = b''.join(received_data[i] for i in sorted(received_data.keys()))
+            print(f"Total received data size: {len(sorted_data)} bytes")  # Debug print
 
-        # Convert array back to an image and save
-        img = Image.fromarray(numpydata)
-        if server:
-            img.save("server_image.bmp")
-        else:
-            img.save("client_image.bmp")
-        print("Image successfully saved as client/server_image.bmp")
+            # Deserialize the array
+            numpydata = pickle.loads(sorted_data)
+            print("Deserialization successful.")
+
+            # Convert array back to an image and save
+            img = Image.fromarray(numpydata)
+            if server:
+                img.save("server_image.bmp")
+            else:
+                img.save("client_image.bmp")
+            print("Image successfully saved as client/server_image.bmp")
+
+        except pickle.UnpicklingError as e:
+            print(f"Unpickling error: {e}")
+        except Exception as e:
+            print(f"Unexpected error during image reconstruction: {e}")
+
+            # Compute and display ACK Efficiency
+            ack_efficiency = (len(self.unique_acks_sent) / self.total_acks_sent) * 100 if self.total_acks_sent > 0 else 0
+            print("\n===== Performance Metrics =====")
+            print(f"Total ACKs Sent: {self.total_acks_sent}")
+            print(f"Unique ACKs Sent: {len(self.unique_acks_sent)}")
+            print(f"ACK Efficiency: {ack_efficiency:.2f}%")
+            print("================================\n")
