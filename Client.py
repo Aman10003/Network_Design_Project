@@ -58,10 +58,16 @@ class Client:
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         file_loc = input("If you want a custom file, input now else press enter: ").strip()
         s = send.send()
-        if file_loc == '':
-            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate)
+
+        protocol_choice = input("Choose protocol: 1 for RDT 3.0, 2 for GBN: ").strip()
+        if protocol_choice == "2":
+            window_size = int(input("Enter window size (e.g., 10): "))
+            timeout_val = float(input("Enter timeout interval in seconds (e.g., 0.05): "))
+            s.udp_send_gbn(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate,
+                           file_loc if file_loc != '' else 'image/OIP.bmp', window_size, timeout_val)
         else:
-            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate, file_loc)
+            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate,
+                       file_loc if file_loc != '' else 'image/OIP.bmp')
 
     def end_communication(self):
         message = 'END'
