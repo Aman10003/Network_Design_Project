@@ -251,6 +251,8 @@ class send:
                 else:
                     duplicate_acks += 1
                 print(f"Received ACK {ack_num}")
+                print(f"Base before sliding: {base}")
+                print(f"Base updated to: {base}")
 
                 # Slide window if ACK is valid
                 if ack_num >= base:
@@ -264,7 +266,7 @@ class send:
                     if update_ui_callback is not None:
                         progress = base / total_packets
                         update_ui_callback(progress, retransmissions, duplicate_acks)
-            except Exception as e:
+            except (timeout, TimeoutError)  as e:
                 # Timeout occurred; retransmit all packets in the current window
                 print(f"Timeout occurred. Retransmitting packets from {base} to {next_seq_num - 1}.")
                 for seq in range(base, next_seq_num):
