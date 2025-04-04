@@ -40,7 +40,8 @@ class Server:
 
                     # Send data based on error type and rate
                     s = send.send()
-                    s.udp_send(serverSocket, clientAddress, error_type, error_rate)
+                    s.udp_send(serverSocket, clientAddress, error_type, error_rate, use_gbn=True, window_size=10)
+
                 except Exception as e:
                     print(f"Error while handling 'GET' request: {e}")
 
@@ -54,9 +55,10 @@ class Server:
                     error_rate = received_list[1]
                     print(f"Received error_type: {error_type}, error_rate: {error_rate}")  # Debugging print
 
-                    # Receive data based on error type and rate
+                    # GBN receiver enabled here
                     r = receive.receive()
-                    r.udp_receive(serverSocket, True, error_type, error_rate)
+                    r.udp_receive(serverSocket, True, error_type, error_rate, use_gbn=True)
+
                 except Exception as e:
                     print(f"Error while handling 'PUSH' request: {e}")
 
