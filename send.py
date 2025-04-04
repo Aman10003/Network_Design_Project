@@ -95,16 +95,29 @@ class send:
                         port.sendto(packet_modified, dest)
                         print(f"Sent packet {sequence_number}")
 
-                    # Adaptive timeout
-                    adaptive_timeout = max(0.05, min(ERTT + 4 * DevRTT, 0.5))  # 50ms and 1 second
+                    # Adaptive timeout calculation
+                    adaptive_timeout = max(0.05, min(ERTT + 4 * DevRTT, 0.5))  # between 50ms and 500ms
                     port.settimeout(adaptive_timeout)
                     print(f"Adaptive timeout is now {adaptive_timeout:.4f} seconds")
 
                     # Wait for ACK
-                    ack_packet, _ = port.recvfrom(2)  # 2-byte ACK
+                    ack_packet, _ = port.recvfrom(4) # 4 bytes: 2 for sequence number and 2 for checksum
                     end_time = time.time()
 
-                    ack_num = struct.unpack("!H", ack_packet)[0]
+                    if len(ack_packet) != 4:
+                        print("ACK packet size error!")
+                        continue
+
+                    # Extract the sequence number and its checksum
+                    ack_seq = ack_packet[:2]
+                    received_checksum = struct.unpack("!H", ack_packet[2:])[0]
+                    computed_checksum = checksums.compute_checksum(ack_seq)
+
+                    if received_checksum != computed_checksum:
+                        print("ACK checksum error! Discarding ACK.")
+                        continue
+
+                    ack_num = struct.unpack("!H", ack_seq)[0]
                     total_acks_received += 1
 
                     if ack_num not in unique_acks_received:
@@ -113,7 +126,7 @@ class send:
                         duplicate_acks += 1  # Count duplicate ACKs
 
                     if ack_num == sequence_number:
-                        print(f"ACK {ack_num} received. Sending next packet.")
+                        print(f"ACK {ack_num} received and verified. Sending next packet.")
                         sequence_number += 1  # Only increment on correct ACK
 
                         if update_ui_callback is not None:
@@ -215,8 +228,21 @@ class send:
                 if remaining_time <= 0:
                     raise TimeoutError
                 port.settimeout(remaining_time)
-                ack_packet, _ = port.recvfrom(2)
-                ack_num = struct.unpack("!H", ack_packet)[0]
+                ack_packet, _ = port.recvfrom(4)
+
+                if len(ack_packet) != 4:
+                    print("ACK packet size error!")
+                    continue
+
+                ack_seq = ack_packet[:2]
+                received_checksum = struct.unpack("!H", ack_packet[2:])[0]
+                computed_checksum = checksums.compute_checksum(ack_seq)
+
+                if received_checksum != computed_checksum:
+                    print("ACK checksum error! Discarding ACK.")
+                    continue
+
+                ack_num = struct.unpack("!H", ack_seq)[0]
                 total_acks_received += 1
                 if ack_num not in unique_acks_received:
                     unique_acks_received.add(ack_num)

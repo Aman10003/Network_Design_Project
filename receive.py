@@ -19,28 +19,34 @@ class receive:
         delay = random.uniform(0, 0.1)
         time.sleep(delay)
 
-        ack_packet = struct.pack("!H", index)  # Last valid packet
+        # Pack the sequence number into 2 bytes
+        ack_seq = struct.pack("!H", index)
+
+        # Compute checksum on the sequence number bytes
+        ack_checksum = checksums.compute_checksum(ack_seq)
+
+        # Append the checksum (2 bytes) to the ACK packet
+        ack_packet = ack_seq + struct.pack("!H", ack_checksum)
+
+        # Send the 4-byte ACK packet
         port.sendto(ack_packet, address)
 
         # Ensure variables exist before modifying them
-        if not hasattr(self, 'total_acks_sent'):
-            self.total_acks_sent = 0
-        if not hasattr(self, 'unique_acks_sent'):
-            self.unique_acks_sent = set()
+        # if not hasattr(self, 'total_acks_sent'):
+        #     self.total_acks_sent = 0
+        # if not hasattr(self, 'unique_acks_sent'):
+        #     self.unique_acks_sent = set()
 
         # Track ACK statistics
         self.total_acks_sent += 1
         self.unique_acks_sent.add(index)
-        print(f"Sent ACK {index}, Delay: {round(delay * 1000, 2)}ms")
+        print(f"Sent ACK {index} with checksum {ack_checksum}, Delay: {round(delay * 1000, 2)}ms")
 
     def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float, use_gbn=False):
         """Receives an image file over UDP using sequence numbers and checksum."""
+        mode = "GBN" if use_gbn else "Stop-and-Wait"
         print('The server is ready to receive image data' if server else 'The client is ready to receive image data')
-
-        if use_gbn:
-            print("Receiver running in GBN mode")
-        else:
-            print("Receiver running in Stop-and-Wait mode")
+        print(f"Receiver running in {mode} mode")
 
         received_data = {}
         expected_seq_num = 0  # Start with an initial expected sequence number
@@ -63,15 +69,16 @@ class receive:
                     print(">>> Received an incomplete packet! Ignoring...")
                     continue
 
-                # Extract sequence number, data, and checksum safely
-                seq_num = struct.unpack("!H", packet[:2])[0]  # Unpack 2-byte sequence number
-                data = packet[2:-2]  # Extract the actual image data (excluding the last 2 bytes)
-                received_checksum = struct.unpack("!H", packet[-2:])[0]  # Unpack the last 2 bytes as checksum
+                # Extract sequence number, data, and checksum from the packet
+                seq_num = struct.unpack("!H", packet[:2])[0]
+                data = packet[2:-2]
+                received_checksum = struct.unpack("!H", packet[-2:])[0]
 
-                computed_checksum = checksums.compute_checksum(data)  # Compute checksum from data
+                # Compute checksum over the data (as done on the sender side)
+                computed_checksum = checksums.compute_checksum(data)
                 print(f"Receiver computed checksum: {computed_checksum}, Received checksum: {received_checksum}")
 
-                # Handle checksum error
+                # If checksum fails, discard packet and resend ACK for last valid packet
                 if received_checksum != computed_checksum:
                     print(f">>> Checksum error in packet {seq_num}! Discarding...")
                     # Resend the last ACK for the previous packet
@@ -80,26 +87,9 @@ class receive:
                         print(f"Resent ACK {expected_seq_num - 1} due to checksum error.")
                     continue
 
-                # GBN mode: only accept in-sequence packets
-                if use_gbn:
-                    if seq_num != expected_seq_num:
-                        print(f">>> GBN: Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
-                        # Always send ACK for last correct packet
-                        ack_num = max(0, expected_seq_num - 1)
-                        self.ack_packet(ack_num, port, address)
-                        continue
-
-                    # Stop-and-Wait: reject out-of-order packets
-                    if seq_num != expected_seq_num:
-                        print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
-                        if expected_seq_num > 0:
-                            self.ack_packet(expected_seq_num - 1, port, address)
-                        continue
-
-                # Simulate data packet loss (for error type 4)
-                if error_type == 4 and random.random() < error_rate:
-                    print(f">>> Simulating data packet loss for packet {seq_num}.")
-                    # Even when we drop it, ACK the last received correct one
+                # Check for out-of-order packet (applies to both GBN and Stop-and-Wait)
+                if seq_num != expected_seq_num:
+                    print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
                     ack_num = max(0, expected_seq_num - 1)
                     self.ack_packet(ack_num, port, address)
                     continue
@@ -115,20 +105,8 @@ class receive:
                 delay = random.uniform(0, 0.1)
                 time.sleep(delay)
 
-                # Send ACK back to the sender
-                ack_packet = struct.pack("!H", expected_seq_num - 1)
-
-                # ACK packet error
-                if error_type == 2:
-                    ack_packet = eg.packet_error(ack_packet, error_rate)
-
-                port.sendto(ack_packet, address)
-
-                # Track ACK statistics
-                self.total_acks_sent += 1
-                self.unique_acks_sent.add(seq_num)
-
-                print(f"Sent ACK {seq_num}, Delay: {round(delay * 1000, 2)}ms")
+                # Send ACK for the packet just received using the dedicated method
+                self.ack_packet(seq_num, port, address)
 
             except Exception as e:
                 print(f"Error receiving packet: {e}")
