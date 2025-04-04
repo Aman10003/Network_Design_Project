@@ -181,84 +181,83 @@ class send:
         print(f"Retransmission Overhead: {retransmission_overhead:.2f}%")
         print("================================\n")
 
-        return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead
 
-    # -----------------------------------------------
-    # GBN Mode (Only runs if use_gbn is True)
-    # -----------------------------------------------
-    if use_gbn:
-        base = 0
-        next_seq_num = 0
-        window = {}
-        packet_timestamps = {}
+        # -----------------------------------------------
+        # GBN Mode (Only runs if use_gbn is True)
+        # -----------------------------------------------
+        if use_gbn:
+            base = 0
+            next_seq_num = 0
+            window = {}
+            packet_timestamps = {}
 
-        while base < total_packets:
-            # Send packets in the window
-            while next_seq_num < base + window_size and next_seq_num < total_packets:
-                packet = self.make_packet(data_bytes, packet_size, next_seq_num)
-                if error_type == 3:
-                    packet = eg.packet_error(packet, error_rate)
+            while base < total_packets:
+                # Send packets in the window
+                while next_seq_num < base + window_size and next_seq_num < total_packets:
+                    packet = self.make_packet(data_bytes, packet_size, next_seq_num)
+                    if error_type == 3:
+                        packet = eg.packet_error(packet, error_rate)
 
-                port.sendto(packet, dest)
-                print(f"Sent packet {next_seq_num} (GBN mode)")
-                window[next_seq_num] = packet
-                packet_timestamps[next_seq_num] = time.time()
-                next_seq_num += 1
+                    port.sendto(packet, dest)
+                    print(f"Sent packet {next_seq_num} (GBN mode)")
+                    window[next_seq_num] = packet
+                    packet_timestamps[next_seq_num] = time.time()
+                    next_seq_num += 1
 
-            try:
-                port.settimeout(ERTT + 4 * DevRTT)
-                ack_packet, _ = port.recvfrom(2)
-                ack_num = struct.unpack("!H", ack_packet)[0]
-                end_time = time.time()
+                try:
+                    port.settimeout(ERTT + 4 * DevRTT)
+                    ack_packet, _ = port.recvfrom(2)
+                    ack_num = struct.unpack("!H", ack_packet)[0]
+                    end_time = time.time()
 
-                RTT = end_time - min(packet_timestamps.values())
-                total_acks_received += 1
+                    RTT = end_time - min(packet_timestamps.values())
+                    total_acks_received += 1
 
-                if ack_num not in unique_acks_received:
-                    unique_acks_received.add(ack_num)
-                else:
-                    duplicate_acks += 1
+                    if ack_num not in unique_acks_received:
+                        unique_acks_received.add(ack_num)
+                    else:
+                        duplicate_acks += 1
 
-                if ack_num >= base:
-                    print(f"Received cumulative ACK {ack_num}")
-                    for seq in list(window):
-                        if seq <= ack_num:
-                            del window[seq]
-                            del packet_timestamps[seq]
-                    base = ack_num + 1
+                    if ack_num >= base:
+                        print(f"Received cumulative ACK {ack_num}")
+                        for seq in list(window):
+                            if seq <= ack_num:
+                                del window[seq]
+                                del packet_timestamps[seq]
+                        base = ack_num + 1
 
-                    # Update RTT estimates
-                    ERTT = (1 - alpha) * ERTT + alpha * RTT
-                    DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
+                        # Update RTT estimates
+                        ERTT = (1 - alpha) * ERTT + alpha * RTT
+                        DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
 
-                    # Dynamically adjust packet size
-                    loss_rate = retransmissions / (base + 1)
-                    new_packet_size = self.adjust_packet_size(packet_size, loss_rate, RTT)
-                    if new_packet_size != packet_size:
-                        print(f"Adjusted packet size from {packet_size} to {new_packet_size}")
-                    packet_size = new_packet_size
+                        # Dynamically adjust packet size
+                        loss_rate = retransmissions / (base + 1)
+                        new_packet_size = self.adjust_packet_size(packet_size, loss_rate, RTT)
+                        if new_packet_size != packet_size:
+                            print(f"Adjusted packet size from {packet_size} to {new_packet_size}")
+                        packet_size = new_packet_size
 
-                    if update_ui_callback is not None:
-                        progress = base / total_packets
-                        update_ui_callback(progress, retransmissions, duplicate_acks)
+                        if update_ui_callback is not None:
+                            progress = base / total_packets
+                            self.update_progress(progress, retransmissions, duplicate_acks)
 
-            except timeout:
-                print(f"Timeout at base {base}. Retransmitting window...")
-                for seq, pkt in window.items():
-                    port.sendto(pkt, dest)
-                    retransmissions += 1
+                except timeout:
+                    print(f"Timeout at base {base}. Retransmitting window...")
+                    for seq, pkt in window.items():
+                        port.sendto(pkt, dest)
+                        retransmissions += 1
 
-        # GBN completion
-        port.sendto(b'END', dest)
-        print("Image data sent successfully! [GBN Mode]")
+            # GBN completion
+            port.sendto(b'END', dest)
+            print("Image data sent successfully! [GBN Mode]")
 
-        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
-        retransmission_overhead = (retransmissions / total_packets) * 100 if total_packets > 0 else 0
+            ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
+            retransmission_overhead = (retransmissions / total_packets) * 100 if total_packets > 0 else 0
 
-        print("\n===== GBN Performance Metrics =====")
-        print(f"ACK Efficiency: {ack_efficiency:.2f}%")
-        print(f"Retransmission Overhead: {retransmission_overhead:.2f}%")
-        print("====================================\n")
+            print("\n===== GBN Performance Metrics =====")
+            print(f"ACK Efficiency: {ack_efficiency:.2f}%")
+            print(f"Retransmission Overhead: {retransmission_overhead:.2f}%")
+            print("====================================\n")
 
         return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead
 
