@@ -82,7 +82,7 @@ class gui:
 
             self.update_progress(1, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead)
             # Schedule notify_completion in the main event loop
-            ui.run(self.notify_completion(total_packets))
+            ui.run(lambda: self.notify_completion(total_packets))
 
 
         threading.Thread(target=send_with_progress, daemon=True).start()
@@ -124,7 +124,7 @@ class gui:
         self.error_rate_label.visible = value
         self.error_rate.visible = value
         self.error_rate_value.visible = value
-        self.error_type_name = value
+        self.error_type_name.visible = value
 
     def create_ui(self):
         self.response_textbox = ui.textarea(label='Server Responses')
