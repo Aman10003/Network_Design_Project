@@ -32,9 +32,14 @@ class receive:
         self.unique_acks_sent.add(index)
         print(f"Sent ACK {index}, Delay: {round(delay * 1000, 2)}ms")
 
-    def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float):
+    def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float, use_gbn=False):
         """Receives an image file over UDP using sequence numbers and checksum."""
         print('The server is ready to receive image data' if server else 'The client is ready to receive image data')
+
+        if use_gbn:
+            print("Receiver running in GBN mode")
+        else:
+            print("Receiver running in Stop-and-Wait mode")
 
         received_data = {}
         expected_seq_num = 0  # Start with an initial expected sequence number
@@ -74,14 +79,21 @@ class receive:
                         print(f"Resent ACK {expected_seq_num - 1} due to checksum error.")
                     continue
 
-                # Handle out-of-order packets
-                if seq_num != expected_seq_num:
-                    print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
-                    # Resend the last ACK to indicate the expected sequence number
-                    if expected_seq_num > 0:
-                        self.ack_packet(expected_seq_num - 1, port, address)
-                        print(f"Resent ACK {expected_seq_num - 1} due to out-of-order packet.")
-                    continue
+                # GBN mode: only accept in-sequence packets
+                if use_gbn:
+                    if seq_num != expected_seq_num:
+                        print(f">>> GBN: Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
+                        # Always ACK last correct packet (expected_seq_num - 1)
+                        if expected_seq_num > 0:
+                            self.ack_packet(expected_seq_num - 1, port, address)
+                        continue
+                else:
+                    # Stop-and-Wait: reject out-of-order packets
+                    if seq_num != expected_seq_num:
+                        print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
+                        if expected_seq_num > 0:
+                            self.ack_packet(expected_seq_num - 1, port, address)
+                        continue
 
                 # Simulate data packet loss
                 if error_type == 4 and random.random() < error_rate:
