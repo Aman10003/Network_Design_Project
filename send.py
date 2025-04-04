@@ -118,7 +118,7 @@ class send:
                         if update_ui_callback is not None:
                             # Update UI progress **only after successful transmission**
                             progress = sequence_number / total_packets
-                            update_ui_callback(progress, retransmissions, duplicate_acks)
+                            self.update_progress(progress, retransmissions, duplicate_acks)
 
                         # Calculate RTT and update ERTT and DevRTT
                         RTT = end_time - start_time
