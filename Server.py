@@ -3,6 +3,7 @@ import receive
 import send
 import ast  # To safely convert string representation of a list back to a list
 
+
 class Server:
     def main(self):
         serverPort = 12000
@@ -66,6 +67,7 @@ class Server:
                 print("Ending communication, closing server.")
                 serverSocket.close()
                 break
+
 
 if __name__ == '__main__':
     c = Server()

@@ -2,6 +2,7 @@ from socket import *
 import receive
 import send
 
+
 class Client:
     def __init__(self):
         self.server_name = 'localhost'
