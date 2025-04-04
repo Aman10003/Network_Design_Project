@@ -76,13 +76,17 @@ class gui:
                 (self.server_name, self.server_port),
                 self.error_type.value,
                 self.error_rate.value,
-                # update_ui_callback=self.update_progress
+                update_ui_callback=[self.progress_bar,
+                                    self.retrans_label,
+                                    self.dup_ack_label,
+                                    self.ack_eff_label,
+                                    self.retrans_overhead_label]
             )
-            ui.run(lambda: self.update_progress(1, retransmissions, duplicate_acks, ack_efficiency,retransmission_overhead))
+            # ui.run(lambda: self.update_progress(1, retransmissions, duplicate_acks, ack_efficiency,retransmission_overhead))
 
             self.update_progress(1, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead)
             # Schedule notify_completion in the main event loop
-            ui.run(self.notify_completion(total_packets))
+            # ui.run(self.notify_completion(total_packets))
 
 
         threading.Thread(target=send_with_progress, daemon=True).start()
