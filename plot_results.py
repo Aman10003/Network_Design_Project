@@ -29,4 +29,4 @@ plt.ylabel('Throughput (bytes/s)')
 plt.title('Throughput vs Error Rate')
 plt.legend()
 plt.grid(True)
-plt.savefig('throughput_vs_error_rate.png')  # Save the plot as an image
+plt.savefig('comparison_vs_error_rate.png')  # Save the plot as an image
