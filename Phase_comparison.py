@@ -18,7 +18,7 @@ def run_test(error_rate):
         s = send.send()
 
         start_time = time.time()
-        total_packets, retransmissions, duplicate_acks, ack_efficiency = s.udp_send_gbn(
+        total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead = s.udp_send_gbn(
             client_socket,
             (server_name, server_port),
             5,                    # error_type
@@ -31,12 +31,11 @@ def run_test(error_rate):
         time_taken = end_time - start_time
         total_bytes = total_packets * 4096
         throughput = total_bytes / time_taken if time_taken > 0 else 0
-        retrans_overhead = (retransmissions / total_packets) * 100 if total_packets > 0 else 0
 
         print(f"[SUCCESS] Throughput = {throughput:.2f} Bps | Time = {time_taken:.3f}s")
 
         client_socket.close()
-        return [error_rate, throughput, time_taken, retransmissions, ack_efficiency, retrans_overhead]
+        return [error_rate, throughput, time_taken, retransmissions, ack_efficiency, retransmission_overhead]
 
     except Exception as e:
         print(f"[ERROR] Test failed for error rate {error_rate} → {e}")

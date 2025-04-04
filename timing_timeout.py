@@ -19,7 +19,7 @@ def run_test(fixed_timeout, use_gbn=True):
         start_time = time.time()
 
         if use_gbn:
-            total_packets, retransmissions, duplicate_acks, ack_efficiency = s.udp_send_gbn(
+            total_packets, retransmissions, duplicate_acks, ack_efficiency, retrans_overhead = s.udp_send_gbn(
                 client_socket,
                 (server_name, server_port),
                 5,
@@ -27,7 +27,6 @@ def run_test(fixed_timeout, use_gbn=True):
                 timeout_interval=fixed_timeout,
                 window_size=10
             )
-            retrans_overhead = (retransmissions / total_packets) * 100 if total_packets > 0 else 0
         else:
             total_packets, retransmissions, duplicate_acks, ack_efficiency, retrans_overhead = s.udp_send(
                 client_socket,

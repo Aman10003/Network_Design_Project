@@ -15,7 +15,7 @@ def run_test(window_size):
     s = send.send()
 
     start_time = time.time()
-    total_packets, retransmissions, duplicate_acks, ack_efficiency = s.udp_send_gbn(
+    total_packets, retransmissions, duplicate_acks, ack_efficiency, retrans_overhead = s.udp_send_gbn(
         client_socket,
         (server_name, server_port),
         5,             # error_type
@@ -28,7 +28,6 @@ def run_test(window_size):
     time_taken = end_time - start_time
     total_bytes = total_packets * 4096
     throughput = total_bytes / time_taken if time_taken > 0 else 0
-    retrans_overhead = (retransmissions / total_packets) * 100 if total_packets > 0 else 0
 
     client_socket.close()
 
