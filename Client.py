@@ -59,14 +59,49 @@ class Client:
         file_loc = input("If you want a custom file, input now else press enter: ").strip()
         s = send.send()
 
-        protocol_choice = input("Choose protocol: 1 for RDT 3.0, 2 for GBN: ").strip()
+        # Validate protocol selection
+        while True:
+            protocol_choice = input("Choose protocol: 1 for RDT 3.0, 2 for GBN: ").strip()
+            if protocol_choice in ["1", "2"]:
+                break
+            else:
+                print("Invalid protocol choice. Please enter 1 or 2.")
+
         if protocol_choice == "2":
-            window_size = int(input("Enter window size (e.g., 10): "))
-            timeout_val = float(input("Enter timeout interval in seconds (e.g., 0.05): "))
-            s.udp_send_gbn(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate,
-                           file_loc if file_loc != '' else 'image/OIP.bmp', window_size, timeout_val)
+            # Validate window size input
+            while True:
+                try:
+                    window_size = int(input("Enter window size (e.g., 10): "))
+                    if window_size > 0:
+                        break
+                    else:
+                        print("Window size must be a positive integer.")
+                except ValueError:
+                    print("Invalid input. Please enter a valid integer for window size.")
+            # Validate timeout input
+            while True:
+                try:
+                    timeout_val = float(input("Enter timeout interval in seconds (e.g., 0.05): "))
+                    if timeout_val > 0:
+                        break
+                    else:
+                        print("Timeout must be a positive number.")
+                except ValueError:
+                    print("Invalid input. Please enter a valid number for timeout interval.")
+            # Call the GBN method with validated parameters
+            s.udp_send_gbn(self.client_socket,
+                           (self.server_name, self.server_port),
+                           self.error_type,
+                           self.error_rate,
+                           file_loc if file_loc != '' else 'image/OIP.bmp',
+                           window_size,
+                           timeout_val)
         else:
-            s.udp_send(self.client_socket, (self.server_name, self.server_port), self.error_type, self.error_rate,
+            # Call the Stop-and-Wait method for RDT 3.0
+            s.udp_send(self.client_socket,
+                       (self.server_name, self.server_port),
+                       self.error_type,
+                       self.error_rate,
                        file_loc if file_loc != '' else 'image/OIP.bmp')
 
     def end_communication(self):

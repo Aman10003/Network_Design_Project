@@ -40,7 +40,7 @@ class Server:
 
                     # Send data based on error type and rate
                     s = send.send()
-                    s.udp_send(serverSocket, clientAddress, error_type, error_rate, use_gbn=True, window_size=10)
+                    s.udp_send_gbn(serverSocket, clientAddress, error_type, error_rate, window_size=10)
 
                 except Exception as e:
                     print(f"Error while handling 'GET' request: {e}")
