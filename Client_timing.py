@@ -43,6 +43,8 @@ class Client:
                         (serverName, serverPort),
                         self.error_type,
                         self.error_rate
+                        use_gbn = True,
+                        window_size = 10
                     )
 
                     # Calculate the time taken

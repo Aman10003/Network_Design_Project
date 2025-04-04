@@ -83,11 +83,11 @@ class receive:
                 if use_gbn:
                     if seq_num != expected_seq_num:
                         print(f">>> GBN: Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
-                        # Always ACK last correct packet (expected_seq_num - 1)
-                        if expected_seq_num > 0:
-                            self.ack_packet(expected_seq_num - 1, port, address)
+                        # Always send ACK for last correct packet
+                        ack_num = max(0, expected_seq_num - 1)
+                        self.ack_packet(ack_num, port, address)
                         continue
-                else:
+
                     # Stop-and-Wait: reject out-of-order packets
                     if seq_num != expected_seq_num:
                         print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
@@ -98,6 +98,9 @@ class receive:
                 # Simulate data packet loss (for error type 4)
                 if error_type == 4 and random.random() < error_rate:
                     print(f">>> Simulating data packet loss for packet {seq_num}.")
+                    # Even when we drop it, ACK the last received correct one
+                    ack_num = max(0, expected_seq_num - 1)
+                    self.ack_packet(ack_num, port, address)
                     continue
 
                 # Otherwise, packet is valid.
