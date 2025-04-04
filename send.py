@@ -9,6 +9,14 @@ import time
 import checksums  # Import the checksums module
 
 class send:
+
+    def __init__(self):
+        self.progress_bar = None
+        self.retrans_label = None
+        self.dup_ack_label = None
+        self.ack_eff_label = None
+        self.retrans_overhead_label = None
+
     def make_packet(self, data_bytes, packet_size, sequence_number):
         """Creates a packet with sequence number and checksum."""
         start = sequence_number * packet_size
@@ -76,6 +84,11 @@ class send:
         unique_acks_received = set()  # Track unique ACKs received
         total_acks_sent = 0  # Initialize total ACKs sent
 
+        # Initalize ui_update values
+        if update_ui_callback is not None:
+            [self.progress_bar, self.retrans_label, self.dup_ack_label, self.ack_eff_label, self.retrans_overhead_label] = update_ui_callback
+
+
         while sequence_number < total_packets:
             self.custom_start_index = start_index
             packet = self.make_packet(data_bytes, packet_size, sequence_number)
@@ -134,10 +147,11 @@ class send:
 
                         sequence_number += 1
 
+                        # def update_progress(self, progress, retransmissions, duplicate_acks, ack_efficiency=0, retransmission_overhead=0):
                         if update_ui_callback is not None:
                             # Update UI progress **only after successful transmission**
                             progress = sequence_number / total_packets
-                            update_ui_callback(progress, retransmissions, duplicate_acks)
+                            self.update_progress(progress, retransmissions, duplicate_acks)
 
                         break #Exit retry loop
 
@@ -247,3 +261,14 @@ class send:
         print("====================================\n")
 
         return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead
+
+
+
+    # Cdoe to attempt to update the gui
+    def update_progress(self, progress, retransmissions, duplicate_acks, ack_efficiency=0, retransmission_overhead=0):
+        """Update UI dynamically."""
+        self.progress_bar.set_value(progress)
+        self.retrans_label.set_text(f"Retransmissions: {retransmissions}")
+        self.dup_ack_label.set_text(f"Duplicate ACKs: {duplicate_acks}")
+        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f}")
+        self.retrans_overhead_label.set_text(f"Retransmission Overhead: {retransmission_overhead:.2f}")
