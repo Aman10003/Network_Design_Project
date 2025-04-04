@@ -161,12 +161,14 @@ class send:
 
         # Compute efficiency metrics
         ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
+        retransmissions_overhead = retransmissions / total_packets * 100
+
         print("\n===== Performance Metrics =====")
         print(f"ACK Efficiency: {ack_efficiency:.2f}%")
         print(f"Retransmission Overhead: {(retransmissions / total_packets) * 100:.2f}%")
         print("================================\n")
 
-        return total_packets, retransmissions, duplicate_acks, ack_efficiency, (retransmissions / total_packets) * 100
+        return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmissions_overhead
 
     def udp_send_gbn(self, port: socket, dest, error_type: int, error_rate: float,
                      image: str = 'image/OIP.bmp', window_size: int = 10, timeout_interval: float = 0.05,
@@ -283,6 +285,7 @@ class send:
         print("Image data sent successfully using GBN!")
 
         ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
+        retransmissions_overhead = retransmissions / total_packets * 100
         print("\n===== Performance Metrics =====")
         print(f"Total ACKs Received: {total_acks_received}")
         print(f"Unique ACKs Received: {len(unique_acks_received)}")
@@ -290,7 +293,7 @@ class send:
         print(f"ACK Efficiency: {ack_efficiency:.2f}%")
         print("================================\n")
 
-        return total_packets, retransmissions, duplicate_acks, ack_efficiency
+        return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmissions_overhead
 
     def update_progress(self, progress, retransmissions, duplicate_acks, ack_efficiency=0, retransmission_overhead=0):
         """Update UI dynamically."""
