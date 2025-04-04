@@ -13,6 +13,12 @@ class send:
         """Creates a packet with sequence number and checksum."""
         start = sequence_number * packet_size
         end = start + packet_size
+
+        # Optionally override start with a provided start_index (for dynamic sizing)
+        if hasattr(self, 'custom_start_index'):
+            start = self.custom_start_index
+            end = start + packet_size
+
         chunk = data_bytes[start:end]
 
         # Compute checksum
@@ -31,7 +37,9 @@ class send:
             return min(8192, current_size * 2)  # Increase packet size
         return current_size
 
-    def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp', update_ui_callback = None):
+    def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp',
+                 update_ui_callback=None, use_gbn=False, window_size=10):
+
         """Sends an image file over UDP with RDT 3.0 and adaptive timeout."""
         img = Image.open(image)
         numpydata = np.asarray(img)
@@ -56,6 +64,12 @@ class send:
         sequence_number = 0
         MAX_RETRIES = 20
 
+        if use_gbn:
+            base = 0
+            next_seq_num = 0
+            window = {}  # Store packets for retransmission
+            packet_timestamps = {}  # Track send times for RTT
+
         retransmissions = 0  # Count packet retransmissions
         duplicate_acks = 0  # Count duplicate ACKs
         total_acks_received = 0  # Track total ACKs received
@@ -63,6 +77,7 @@ class send:
         total_acks_sent = 0  # Initialize total ACKs sent
 
         while sequence_number < total_packets:
+            self.custom_start_index = start_index
             packet = self.make_packet(data_bytes, packet_size, sequence_number)
             retries = 0
 
@@ -81,19 +96,19 @@ class send:
                     else:
                         # Send packet
                         port.sendto(packet_modified, dest)
-                        print(f"Sent packet {sequence_number}")
+                        print(f"Sent packet {sequence_number} (size: {packet_size} bytes)")
 
                     # Wait for ACK
-                    # port.settimeout(ERTT + 4 * DevRTT)  # Adaptive timeout
-                    port.settimeout(0.5)  # Non-adaptive timeout. Adaptive timeout doesn't work
+                    port.settimeout(ERTT + 4 * DevRTT)  # Adaptive timeout
+                    # port.settimeout(0.5)  # Non-adaptive timeout. Adaptive timeout doesn't work
+                    print(f"Timeout is now {ERTT + 4 * DevRTT:.4f} seconds")
 
-                    print(f"Timeout is now {ERTT + 4 * DevRTT}")
                     ack_packet, _ = port.recvfrom(2)  # 2-byte ACK
                     end_time = time.time()
 
+                    RTT = end_time - start_time
                     ack_num = struct.unpack("!H", ack_packet)[0]
                     total_acks_received += 1  # Track total ACKs received
-                    total_acks_sent += 1  # Increment total ACKs sent for efficiency metric
 
                     if ack_num not in unique_acks_received:
                         unique_acks_received.add(ack_num)
@@ -102,33 +117,42 @@ class send:
 
                     if ack_num == sequence_number:
                         print(f"ACK {ack_num} received. Sending next packet.")
-                        sequence_number += 1  # Only increment on correct ACK
+
+                        # Advance data pointer for next packet
+                        start_index += packet_size
+
+                        # Update timeout estimates
+                        ERTT = (1 - alpha) * ERTT + alpha * RTT
+                        DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
+
+                        # Dynamically adjust packet size
+                        loss_rate = retransmissions / (sequence_number + 1)
+                        new_packet_size = self.adjust_packet_size(packet_size, loss_rate, RTT)
+                        if new_packet_size != packet_size:
+                            print(f"Adjusted packet size from {packet_size} to {new_packet_size}")
+                        packet_size = new_packet_size
+
+                        sequence_number += 1
 
                         if update_ui_callback is not None:
                             # Update UI progress **only after successful transmission**
                             progress = sequence_number / total_packets
                             update_ui_callback(progress, retransmissions, duplicate_acks)
 
-                        # Calculate RTT and update ERTT and DevRTT
-                        RTT = end_time - start_time
-                        ERTT = (1 - alpha) * ERTT + alpha * RTT
-                        DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
-
-                        break  # Exit retry loop
+                        break #Exit retry loop
 
                     else:
-                        duplicate_acks += 1  # Track duplicate ACKs
-                        print(f"Incorrect ACK {ack_num}. Retransmitting packet {sequence_number}...")
+                        print(f"Incorrect ACK {ack_num}, expecting {sequence_number}. Retrying.")
+                        duplicate_acks += 1
 
                 except timeout:
                     retries += 1
-                    retransmissions += 1  # Track retransmissions
+                    retransmissions += 1
                     print(f"Timeout for packet {sequence_number}. Retries: {retries}")
 
             if retries == MAX_RETRIES:
                 print(f"Failed to send packet {sequence_number} after {MAX_RETRIES} retries.")
                 return total_packets, retransmissions, duplicate_acks
-
 
         # Send termination signal
         port.sendto(b'END', dest)
@@ -142,5 +166,84 @@ class send:
         print(f"ACK Efficiency: {ack_efficiency:.2f}%")
         print(f"Retransmission Overhead: {retransmission_overhead:.2f}%")
         print("================================\n")
+
+        return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead
+
+    # -----------------------------------------------
+    # GBN Mode (Only runs if use_gbn is True)
+    # -----------------------------------------------
+    if use_gbn:
+        base = 0
+        next_seq_num = 0
+        window = {}
+        packet_timestamps = {}
+
+        while base < total_packets:
+            # Send packets in the window
+            while next_seq_num < base + window_size and next_seq_num < total_packets:
+                packet = self.make_packet(data_bytes, packet_size, next_seq_num)
+                if error_type == 3:
+                    packet = eg.packet_error(packet, error_rate)
+
+                port.sendto(packet, dest)
+                print(f"Sent packet {next_seq_num} (GBN mode)")
+                window[next_seq_num] = packet
+                packet_timestamps[next_seq_num] = time.time()
+                next_seq_num += 1
+
+            try:
+                port.settimeout(ERTT + 4 * DevRTT)
+                ack_packet, _ = port.recvfrom(2)
+                ack_num = struct.unpack("!H", ack_packet)[0]
+                end_time = time.time()
+
+                RTT = end_time - min(packet_timestamps.values())
+                total_acks_received += 1
+
+                if ack_num not in unique_acks_received:
+                    unique_acks_received.add(ack_num)
+                else:
+                    duplicate_acks += 1
+
+                if ack_num >= base:
+                    print(f"Received cumulative ACK {ack_num}")
+                    for seq in list(window):
+                        if seq <= ack_num:
+                            del window[seq]
+                            del packet_timestamps[seq]
+                    base = ack_num + 1
+
+                    # Update RTT estimates
+                    ERTT = (1 - alpha) * ERTT + alpha * RTT
+                    DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
+
+                    # Dynamically adjust packet size
+                    loss_rate = retransmissions / (base + 1)
+                    new_packet_size = self.adjust_packet_size(packet_size, loss_rate, RTT)
+                    if new_packet_size != packet_size:
+                        print(f"Adjusted packet size from {packet_size} to {new_packet_size}")
+                    packet_size = new_packet_size
+
+                    if update_ui_callback is not None:
+                        progress = base / total_packets
+                        update_ui_callback(progress, retransmissions, duplicate_acks)
+
+            except timeout:
+                print(f"Timeout at base {base}. Retransmitting window...")
+                for seq, pkt in window.items():
+                    port.sendto(pkt, dest)
+                    retransmissions += 1
+
+        # GBN completion
+        port.sendto(b'END', dest)
+        print("Image data sent successfully! [GBN Mode]")
+
+        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
+        retransmission_overhead = (retransmissions / total_packets) * 100 if total_packets > 0 else 0
+
+        print("\n===== GBN Performance Metrics =====")
+        print(f"ACK Efficiency: {ack_efficiency:.2f}%")
+        print(f"Retransmission Overhead: {retransmission_overhead:.2f}%")
+        print("====================================\n")
 
         return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead

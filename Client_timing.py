@@ -17,7 +17,10 @@ class Client:
         # Open CSV file to store results
         with open('performance_results.csv', mode='w', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow(["Error Type", "Error Rate", "Completion Time (s)", "Throughput (bytes/s)"])
+            writer.writerow([
+                "Error Type", "Error Rate (%)", "Completion Time (s)", "Throughput (bytes/s)",
+                "Retransmissions", "Duplicate ACKs", "ACK Efficiency (%)", "Retransmission Overhead (%)"
+            ])
 
             # Loop through error types 1 to 5
             for error_type in range(1, 6):
@@ -35,7 +38,12 @@ class Client:
                     clientSocket.sendto(message.encode(), (serverName, serverPort))
                     s = send.send()
 
-                    total_packets, retransmissions, duplicate_acks = s.udp_send(clientSocket, (serverName, serverPort), self.error_type, self.error_rate)
+                    total_packets, retransmissions, duplicate_acks, ack_efficiency, retrans_overhead = s.udp_send(
+                        clientSocket,
+                        (serverName, serverPort),
+                        self.error_type,
+                        self.error_rate
+                    )
 
                     # Calculate the time taken
                     end_time = time.time()
@@ -46,9 +54,14 @@ class Client:
                     throughput = total_bytes / time_taken if time_taken > 0 else 0
 
                     # Write the error type, error rate, time taken, and throughput to the CSV file
-                    writer.writerow([self.error_type, self.error_rate * 100, time_taken, throughput])
+                    writer.writerow([ self.error_type, self.error_rate * 100, time_taken,
+                        throughput, retransmissions, duplicate_acks, ack_efficiency, retrans_overhead
+                    ])
 
-                    print(f"PUSH with Error Type {self.error_type} and {self.error_rate * 100}% error rate completed in {time_taken:.4f} seconds with throughput {throughput:.2f} bytes/s.")
+                    print(f"\nPUSH with Error Type {self.error_type} and {self.error_rate * 100:.0f}% error rate completed in {time_taken:.4f} seconds with throughput {throughput:.2f} bytes/s.")
+
+                    print(f"  ↳ Retransmissions: {retransmissions}, Duplicate ACKs: {duplicate_acks}")
+                    print(f"  ↳ ACK Efficiency: {ack_efficiency:.2f}%, Retransmission Overhead: {retrans_overhead:.2f}%")
 
         clientSocket.close()
 
