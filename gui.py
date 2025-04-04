@@ -25,7 +25,7 @@ class gui:
         self.error_rate_label = None
         self.error_type_name = None
         self.response_textbox = None
-        self.execute = None
+        self.execute_button = None
 
         self.retrans_overhead_label = None
         self.ack_eff_label = None
@@ -154,7 +154,7 @@ class gui:
             self.error_rate = ui.slider(min=0, max=1, step=0.01, value=0)
             self.error_rate_value = ui.label().bind_text_from(self.error_rate, 'value')
 
-        self.execute = ui.button("Execute", on_click=self.execute)
+        self.execute_button = ui.button("Execute", on_click=self.execute)
 
         # Create UI elements for progress tracking
         self.progress_bar = ui.linear_progress(value=0)
