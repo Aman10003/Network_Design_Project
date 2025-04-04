@@ -14,8 +14,8 @@ class receive:
         self.unique_acks_sent = set()  # Also initialize unique ACK tracking
 
     def ack_packet(self, index, port, address):
-        # Simulate network delay (0-500ms) before sending ACK
-        delay = random.uniform(0, 0.5)
+        # Simulate network delay (0-100ms) before sending ACK
+        delay = random.uniform(0, 0.1)
         time.sleep(delay)
 
         ack_packet = struct.pack("!H", index)  # Last valid packet
@@ -95,7 +95,7 @@ class receive:
                             self.ack_packet(expected_seq_num - 1, port, address)
                         continue
 
-                # Simulate data packet loss
+                # Simulate data packet loss (for error type 4)
                 if error_type == 4 and random.random() < error_rate:
                     print(f">>> Simulating data packet loss for packet {seq_num}.")
                     continue
@@ -107,8 +107,8 @@ class receive:
                 # Update the expected sequence number for the next packet
                 expected_seq_num += 1
 
-                # Simulate network delay (0-500ms) before sending ACK
-                delay = random.uniform(0, 0.5)
+                # Simulate network delay (0-100ms) before sending ACK
+                delay = random.uniform(0, 0.1)
                 time.sleep(delay)
 
                 # Send ACK back to the sender

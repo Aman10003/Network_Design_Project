@@ -66,7 +66,6 @@ class send:
         duplicate_acks = 0  # Count duplicate ACKs
         total_acks_received = 0  # Track total ACKs received
         unique_acks_received = set()  # Track unique ACKs received
-        total_acks_sent = 0  # Initialize total ACKs sent
 
         # Initialize ui_update values
         if update_ui_callback is not None:
@@ -94,17 +93,17 @@ class send:
                         port.sendto(packet_modified, dest)
                         print(f"Sent packet {sequence_number}")
 
-                    # Wait for ACK
-                    # port.settimeout(ERTT + 4 * DevRTT)  # Adaptive timeout
-                    port.settimeout(0.5)  # Non-adaptive timeout. Adaptive timeout doesn't work
+                    # Adaptive timeout
+                    adaptive_timeout = max(0.05, min(ERTT + 4 * DevRTT, 0.5)) # 50ms and 1 second
+                    port.settimeout(adaptive_timeout)
+                    print(f"Adaptive timeout is now {adaptive_timeout:.4f} seconds")
 
-                    print(f"Timeout is now {ERTT + 4 * DevRTT}")
+                    # Wait for ACK
                     ack_packet, _ = port.recvfrom(2)  # 2-byte ACK
                     end_time = time.time()
 
                     ack_num = struct.unpack("!H", ack_packet)[0]
-                    total_acks_received += 1  # Track total ACKs received
-                    total_acks_sent += 1  # Increment total ACKs sent for efficiency metric
+                    total_acks_received += 1
 
                     if ack_num not in unique_acks_received:
                         unique_acks_received.add(ack_num)
@@ -116,14 +115,15 @@ class send:
                         sequence_number += 1  # Only increment on correct ACK
 
                         if update_ui_callback is not None:
-                            # Update UI progress **only after successful transmission**
                             progress = sequence_number / total_packets
                             self.update_progress(progress, retransmissions, duplicate_acks)
 
                         # Calculate RTT and update ERTT and DevRTT
                         RTT = end_time - start_time
+                        print(f"Measured RTT: {RTT:.4f} seconds")
                         ERTT = (1 - alpha) * ERTT + alpha * RTT
                         DevRTT = (1 - beta) * DevRTT + beta * abs(RTT - ERTT)
+                        print(f"Updated ERTT: {ERTT:.4f}, DevRTT: {DevRTT:.4f}")
 
                         break  # Exit retry loop
 
