@@ -17,7 +17,7 @@
    * Open a terminal or command prompt. 
    * Run the server 
      * python server.py
-he server should display "Server is ready to receive connections" and listen for incoming connections from clients.
+     * the server should display "Server is ready to receive connections" and listen for incoming connections from clients.
 
 2. Start the Client 
    * Open another terminal or command prompt.

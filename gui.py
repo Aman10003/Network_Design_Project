@@ -24,6 +24,8 @@ class gui:
         self.error_rate_value = None
         self.error_rate_label = None
         self.error_type_name = None
+        self.response_textbox = None
+        self.execute = None
 
         self.retrans_overhead_label = None
         self.ack_eff_label = None
@@ -46,7 +48,8 @@ class gui:
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         try:
             server_message, _ = self.client_socket.recvfrom(2048)
-            self.response_textbox.value += f'HELLO Response: {server_message.decode()}\n'  # Append server response to text box
+            # Append server response to text box
+            self.response_textbox.value += f'HELLO Response: {server_message.decode()}\n'
             print(server_message.decode())
         except ConnectionResetError:
             self.response_textbox.value += 'Connection was forcibly closed by the server.\n'
@@ -87,7 +90,6 @@ class gui:
             self.update_progress(1, retransmissions, duplicate_acks, ack_efficiency, retransmission_overhead)
             # Schedule notify_completion in the main event loop
             # ui.run(lambda: self.notify_completion(total_packets))
-
 
         threading.Thread(target=send_with_progress, daemon=True).start()
 

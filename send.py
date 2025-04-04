@@ -8,6 +8,7 @@ import error_gen
 import time
 import checksums  # Import the checksums module
 
+
 class send:
     def __init__(self):
         self.progress_bar = None
@@ -15,6 +16,7 @@ class send:
         self.dup_ack_label = None
         self.ack_eff_label = None
         self.retrans_overhead_label = None
+
     def make_packet(self, data_bytes, packet_size, sequence_number):
         """Creates a packet with sequence number and checksum."""
         start = sequence_number * packet_size
@@ -28,7 +30,6 @@ class send:
         # Attach sequence number (2 bytes) + chunk + checksum (2 bytes)
         return struct.pack("!H", sequence_number) + chunk + struct.pack("!H", checksum)
 
-
     def adjust_packet_size(self, current_size, loss_rate, ack_delay):
         """Adjust packet size based on loss rate and ACK delay."""
         if loss_rate > 0.1 or ack_delay > 0.1:
@@ -37,7 +38,8 @@ class send:
             return min(8192, current_size * 2)  # Increase packet size
         return current_size
 
-    def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp', update_ui_callback = None):
+    def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp',
+                 update_ui_callback = None):
         """RDT 3.0 with adaptive timeout implementation."""
         img = Image.open(image)
         numpydata = np.asarray(img)
@@ -94,7 +96,7 @@ class send:
                         print(f"Sent packet {sequence_number}")
 
                     # Adaptive timeout
-                    adaptive_timeout = max(0.05, min(ERTT + 4 * DevRTT, 0.5)) # 50ms and 1 second
+                    adaptive_timeout = max(0.05, min(ERTT + 4 * DevRTT, 0.5))  # 50ms and 1 second
                     port.settimeout(adaptive_timeout)
                     print(f"Adaptive timeout is now {adaptive_timeout:.4f} seconds")
 

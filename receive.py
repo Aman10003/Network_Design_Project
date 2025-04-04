@@ -7,6 +7,7 @@ from PIL import Image
 import error_gen
 import checksums  # Import the checksums module
 
+
 class receive:
     def __init__(self):
         """Initialize tracking variables to avoid AttributeError."""
@@ -21,7 +22,7 @@ class receive:
         ack_packet = struct.pack("!H", index)  # Last valid packet
         port.sendto(ack_packet, address)
 
-        #Ensure variables exist before modifying them
+        # Ensure variables exist before modifying them
         if not hasattr(self, 'total_acks_sent'):
             self.total_acks_sent = 0
         if not hasattr(self, 'unique_acks_sent'):
