@@ -145,9 +145,6 @@ class receive:
         """
         Receives an image file over UDP using the Selective Repeat protocol.
         """
-        import pickle, struct
-        from PIL import Image
-        import checksums
 
         print('The server is ready to receive image data' if server else 'The client is ready to receive image data')
         print("Receiver running in Selective Repeat mode")
