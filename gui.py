@@ -15,6 +15,7 @@ import port as p
 class gui:
 
     def __init__(self):
+
         self.server_name = 'localhost'
         self.server_port = 12000
         self.client_socket = socket(AF_INET, SOCK_DGRAM)
@@ -26,6 +27,8 @@ class gui:
         self.error_type_name = None
         self.response_textbox = None
         self.execute_button = None
+        self.transmit_type_name = None
+        self.transmit_type = None
 
         self.retrans_overhead_label = None
         self.ack_eff_label = None
@@ -153,6 +156,11 @@ class gui:
             self.error_rate_label = ui.label('Select Error Rate')
             self.error_rate = ui.slider(min=0, max=1, step=0.01, value=0)
             self.error_rate_value = ui.label().bind_text_from(self.error_rate, 'value')
+
+        # Creates selection of RDT 3.0 vs GBN
+        self.transmit_type = ui.select([1, 2, 3, 4, 5], value=1)
+        self.transmit_type.visible = False
+        self.transmit_type_name = ui.select({1: 'RDT 3.0', 2: 'GBN', 3: 'SR'}).bind_value((self.transmit_type))
 
         self.execute_button = ui.button("Execute", on_click=self.execute)
 
