@@ -46,6 +46,7 @@ class Server:
                 except Exception as e:
                     print(f"Error while handling 'GET' request: {e}")
 
+
             elif message == 'PUSH':
                 print("Received 'PUSH' request from client.")
                 try:
@@ -54,14 +55,21 @@ class Server:
                     received_list = ast.literal_eval(decoded_message)  # Safely parse the list
                     error_type = received_list[0]
                     error_rate = received_list[1]
-                    print(f"Received error_type: {error_type}, error_rate: {error_rate}")  # Debugging print
+                    protocol_choice = received_list[2] if len(received_list) > 2 else "2"  # Defaults to GBN
+                    print(
+                        f"Received error_type: {error_type}, error_rate: {error_rate}, protocol_choice: {protocol_choice}")
 
-                    # GBN receiver enabled here
                     r = receive.receive()
-                    r.udp_receive(serverSocket, True, error_type, error_rate, use_gbn=True)
-
+                    if protocol_choice == "2":
+                        r.udp_receive(serverSocket, True, error_type, error_rate, use_gbn=True)
+                    elif protocol_choice == "3":
+                        r.udp_receive_sr(serverSocket, True, error_type, error_rate, window_size=10)
+                    else:
+                        r.udp_receive(serverSocket, True, error_type, error_rate, use_gbn=False)
                 except Exception as e:
+
                     print(f"Error while handling 'PUSH' request: {e}")
+
 
             elif message == 'END':
                 print("Ending communication, closing server.")

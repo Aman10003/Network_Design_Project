@@ -297,6 +297,112 @@ class send:
 
         return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmissions_overhead
 
+    def udp_send_sr(self, port: socket, dest, error_type: int, error_rate: float,
+                    image: str = 'image/OIP.bmp', window_size: int = 10, timeout_interval: float = 0.05,
+                    update_ui_callback=None):
+        """
+        Sends an image file over UDP using the Selective Repeat protocol.
+        """
+        # Load image
+        img = Image.open(image)
+        numpydata = np.asarray(img)
+        data_bytes = pickle.dumps(numpydata)
+
+        packet_size = 4096
+        total_packets = len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
+
+        # Create packets with sequence numbers and checksums.
+        packets = []
+        for seq in range(total_packets):
+            packet = self.make_packet(data_bytes, packet_size, seq)
+            packets.append(packet)
+
+        print(f"Sending {total_packets} packets using Selective Repeat with window size {window_size}...")
+
+        base = 0
+        next_seq = 0
+        window = {}  # {seq: {"packet": packet, "acked": False, "timer": timestamp}}
+
+        retransmissions = 0
+        duplicate_acks = 0
+        total_acks_received = 0
+        unique_acks_received = set()
+        eg = error_gen.error_gen()
+
+        while base < total_packets:
+            # Fill the window: send packets not yet sent.
+            while next_seq < total_packets and next_seq < base + window_size:
+                if next_seq not in window:
+                    window[next_seq] = {"packet": packets[next_seq], "acked": False, "timer": time.time()}
+                    pkt_to_send = window[next_seq]["packet"]
+                    # Simulate data packet loss or bit error if needed.
+                    if error_type == 5 and random.random() < error_rate:
+                        print(f">>> Simulating data packet loss for packet {next_seq}.")
+                    else:
+                        if error_type == 3:
+                            pkt_to_send = eg.packet_error(pkt_to_send, error_rate)
+                        port.sendto(pkt_to_send, dest)
+                        print(f"Sent packet {next_seq} (Selective Repeat)")
+                next_seq += 1
+
+            # Listen for ACKs using a short timeout.
+            try:
+                port.settimeout(0.01)
+                ack_packet, _ = port.recvfrom(4)
+                if len(ack_packet) != 4:
+                    continue
+                ack_seq = struct.unpack("!H", ack_packet[:2])[0]
+                received_checksum = struct.unpack("!H", ack_packet[2:])[0]
+                computed_checksum = checksums.compute_checksum(ack_packet[:2])
+                if received_checksum != computed_checksum:
+                    print("ACK checksum error! Discarding ACK.")
+                    continue
+                total_acks_received += 1
+                if ack_seq not in unique_acks_received:
+                    unique_acks_received.add(ack_seq)
+                else:
+                    duplicate_acks += 1
+                print(f"Received ACK {ack_seq} (Selective Repeat)")
+                if ack_seq in window:
+                    window[ack_seq]["acked"] = True
+            except timeout:
+                pass
+
+            # Check for packets in the window whose timers have expired.
+            current_time = time.time()
+            for seq in list(window.keys()):
+                if not window[seq]["acked"] and (current_time - window[seq]["timer"]) > timeout_interval:
+                    pkt = window[seq]["packet"]
+                    if error_type == 5 and random.random() < error_rate:
+                        print(f">>> Simulating data packet loss for retransmitted packet {seq}.")
+                    else:
+                        pkt_to_send = pkt
+                        if error_type == 3:
+                            pkt_to_send = eg.packet_error(pkt, error_rate)
+                        port.sendto(pkt_to_send, dest)
+                        print(f"Retransmitted packet {seq} (Selective Repeat)")
+                    retransmissions += 1
+                    window[seq]["timer"] = current_time
+
+            # Slide the window by removing consecutively acknowledged packets.
+            while base in window and window[base]["acked"]:
+                del window[base]
+                base += 1
+
+        # Send termination signal.
+        port.sendto(b'END', dest)
+        print("Image data sent successfully using Selective Repeat!")
+        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
+        retransmissions_overhead = retransmissions / total_packets * 100
+        print("\n===== Performance Metrics (Selective Repeat) =====")
+        print(f"Total ACKs Received: {total_acks_received}")
+        print(f"Unique ACKs Received: {len(unique_acks_received)}")
+        print(f"Retransmissions: {retransmissions}")
+        print(f"ACK Efficiency: {ack_efficiency:.2f}%")
+        print("==================================================\n")
+
+        return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmissions_overhead
+
     def update_progress(self, progress, retransmissions, duplicate_acks, ack_efficiency=0, retransmission_overhead=0):
         """Update UI dynamically."""
         self.progress_bar.set_value(progress)

@@ -140,3 +140,72 @@ class receive:
             print(f"Unique ACKs Sent: {len(self.unique_acks_sent)}")
             print(f"ACK Efficiency: {ack_efficiency:.2f}%")
             print("================================\n")
+
+    def udp_receive_sr(self, port: socket, server: bool, error_type: int, error_rate: float, window_size: int = 10):
+        """
+        Receives an image file over UDP using the Selective Repeat protocol.
+        """
+        import pickle, struct
+        from PIL import Image
+        import checksums
+
+        print('The server is ready to receive image data' if server else 'The client is ready to receive image data')
+        print("Receiver running in Selective Repeat mode")
+
+        received_data = {}  # Buffer to store packets by sequence number
+        expected_seq = 0
+        port.setsockopt(SOL_SOCKET, SO_RCVBUF, 65536)
+
+        while True:
+            try:
+                packet, address = port.recvfrom(65535)
+                if packet == b'END':
+                    print("Received termination signal. Reassembling image...")
+                    break
+
+                if len(packet) < 4:
+                    print("Incomplete packet received. Ignoring.")
+                    continue
+
+                seq_num = struct.unpack("!H", packet[:2])[0]
+                data = packet[2:-2]
+                received_checksum = struct.unpack("!H", packet[-2:])[0]
+                computed_checksum = checksums.compute_checksum(data)
+                print(f"Receiver computed checksum: {computed_checksum}, Received checksum: {received_checksum}")
+
+                if received_checksum != computed_checksum:
+                    print(f"Checksum error in packet {seq_num}. Discarding.")
+                    continue
+
+                # Accept packet if within the receiver's window.
+                if seq_num < expected_seq or seq_num >= expected_seq + window_size:
+                    print(f"Packet {seq_num} is outside the receiving window. Sending ACK anyway.")
+                    self.ack_packet(seq_num, port, address)
+                    continue
+
+                # Buffer the packet and send an ACK.
+                received_data[seq_num] = data
+                self.ack_packet(seq_num, port, address)
+                print(f"Accepted packet {seq_num} and sent ACK.")
+
+                # Slide the window if the expected packet(s) have arrived.
+                while expected_seq in received_data:
+                    expected_seq += 1
+            except Exception as e:
+                print(f"Error receiving packet: {e}")
+                break
+
+        # Reassemble and reconstruct the image.
+        try:
+            sorted_data = b''.join(received_data[i] for i in sorted(received_data.keys()))
+            print(f"Total received data size: {len(sorted_data)} bytes")
+            numpydata = pickle.loads(sorted_data)
+            print("Deserialization successful.")
+            img = Image.fromarray(numpydata)
+            if server:
+                img.save("server_image_sr.bmp")
+            else:
+                img.save("client_image_sr.bmp")
+            print("Image successfully saved as server_image_sr.bmp or client_image_sr.bmp")
+        except Exception as e:
+            print(f"Error reconstructing image: {e}")

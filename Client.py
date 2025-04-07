@@ -55,21 +55,22 @@ class Client:
         message = 'PUSH'
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         self.error_selection()
-        message = str([self.error_type, self.error_rate])
+        # Prompt for protocol selection.
+        while True:
+            protocol_choice = input(
+                "Choose protocol: 1 for RDT 3.0 (Stop-and-Wait), 2 for GBN, 3 for Selective Repeat: ").strip()
+            if protocol_choice in ["1", "2", "3"]:
+                break
+            else:
+                print("Invalid protocol choice. Please enter 1, 2, or 3.")
+        # Send error parameters along with the protocol selection.
+        message = str([self.error_type, self.error_rate, protocol_choice])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         file_loc = input("If you want a custom file, input now else press enter: ").strip()
         s = send.send()
 
-        # Validate protocol selection
-        while True:
-            protocol_choice = input("Choose protocol: 1 for RDT 3.0, 2 for GBN: ").strip()
-            if protocol_choice in ["1", "2"]:
-                break
-            else:
-                print("Invalid protocol choice. Please enter 1 or 2.")
-
         if protocol_choice == "2":
-            # Validate window size input
+            # Validate parameters for GBN.
             while True:
                 try:
                     window_size = int(input("Enter window size (e.g., 10): "))
@@ -79,7 +80,6 @@ class Client:
                         print("Window size must be a positive integer.")
                 except ValueError:
                     print("Invalid input. Please enter a valid integer for window size.")
-            # Validate timeout input
             while True:
                 try:
                     timeout_val = float(input("Enter timeout interval in seconds (e.g., 0.05): "))
@@ -89,7 +89,6 @@ class Client:
                         print("Timeout must be a positive number.")
                 except ValueError:
                     print("Invalid input. Please enter a valid number for timeout interval.")
-            # Call the GBN method with validated parameters
             s.udp_send_gbn(self.client_socket,
                            (self.server_name, self.server_port),
                            self.error_type,
@@ -97,8 +96,35 @@ class Client:
                            file_loc if file_loc != '' else 'image/OIP.bmp',
                            window_size,
                            timeout_val)
+        elif protocol_choice == "3":
+            # Validate parameters for Selective Repeat.
+            while True:
+                try:
+                    window_size = int(input("Enter window size (e.g., 10): "))
+                    if window_size > 0:
+                        break
+                    else:
+                        print("Window size must be a positive integer.")
+                except ValueError:
+                    print("Invalid input. Please enter a valid integer for window size.")
+            while True:
+                try:
+                    timeout_val = float(input("Enter timeout interval in seconds (e.g., 0.05): "))
+                    if timeout_val > 0:
+                        break
+                    else:
+                        print("Timeout must be a positive number.")
+                except ValueError:
+                    print("Invalid input. Please enter a valid number for timeout interval.")
+            s.udp_send_sr(self.client_socket,
+                          (self.server_name, self.server_port),
+                          self.error_type,
+                          self.error_rate,
+                          file_loc if file_loc != '' else 'image/OIP.bmp',
+                          window_size,
+                          timeout_val)
         else:
-            # Call the Stop-and-Wait method for RDT 3.0
+            # Stop-and-Wait (RDT 3.0)
             s.udp_send(self.client_socket,
                        (self.server_name, self.server_port),
                        self.error_type,
