@@ -245,6 +245,10 @@ class send:
                 received_checksum = struct.unpack("!H", ack_packet[2:])[0]
                 computed_checksum = checksums.compute_checksum(ack_seq)
 
+                if update_ui_callback is not None:
+                    progress = base / total_packets
+                    self.update_progress(progress, retransmissions, duplicate_acks)
+
                 if received_checksum != computed_checksum:
                     print("ACK checksum error! Discarding ACK.")
                     continue
@@ -358,6 +362,9 @@ class send:
                     print("ACK checksum error! Discarding ACK.")
                     continue
                 total_acks_received += 1
+                if update_ui_callback is not None:
+                    progress = ack_seq / total_packets
+                    self.update_progress(progress, retransmissions, duplicate_acks)
                 if ack_seq not in unique_acks_received:
                     unique_acks_received.add(ack_seq)
                 else:
@@ -424,5 +431,5 @@ class send:
         self.progress_bar.set_value(progress)
         self.retrans_label.set_text(f"Retransmissions: {retransmissions}")
         self.dup_ack_label.set_text(f"Duplicate ACKs: {duplicate_acks}")
-        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f}")
-        self.retrans_overhead_label.set_text(f"Retransmission Overhead: {retransmission_overhead:.2f}")
+        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f %}")
+        self.retrans_overhead_label.set_text(f"Retransmission Overhead: {retransmission_overhead:.2f} %")
