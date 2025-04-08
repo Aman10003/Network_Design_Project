@@ -1,3 +1,4 @@
+# Client.py
 from socket import *
 import receive
 import send
@@ -22,7 +23,6 @@ class Client:
                     print("Invalid option. Please enter 1, 2, 3, 4, or 5.")
             except ValueError:
                 print("Invalid input. Please enter a number (1, 2, 3, 4, or 5).")
-
         if self.error_type != 1:
             while True:
                 try:
@@ -46,10 +46,18 @@ class Client:
         message = 'GET'
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         self.error_selection()
-        message = str([self.error_type, self.error_rate])
+        # Prompt for protocol selection.
+        while True:
+            protocol_choice = input("Choose protocol for GET: 1 for Stop-and-Wait, 2 for GBN, 3 for Selective Repeat: ").strip()
+            if protocol_choice in ["1", "2", "3"]:
+                break
+            else:
+                print("Invalid protocol choice. Please enter 1, 2, or 3.")
+        protocol = "sw" if protocol_choice == "1" else ("gbn" if protocol_choice == "2" else "sr")
+        message = str([self.error_type, self.error_rate, protocol])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         r = receive.receive()
-        r.udp_receive(self.client_socket, False, self.error_type, self.error_rate)
+        r.udp_receive_protocol(self.client_socket, False, self.error_type, self.error_rate, protocol)
 
     def push_file(self):
         message = 'PUSH'
@@ -63,14 +71,13 @@ class Client:
                 break
             else:
                 print("Invalid protocol choice. Please enter 1, 2, or 3.")
-        # Send error parameters along with the protocol selection.
-        message = str([self.error_type, self.error_rate, protocol_choice])
+        protocol = "sw" if protocol_choice == "1" else ("gbn" if protocol_choice == "2" else "sr")
+        message = str([self.error_type, self.error_rate, protocol])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
-        file_loc = input("If you want a custom file, input now else press enter: ").strip()
+        file_loc = input("If you want a custom file, input file path now else press enter: ").strip()
         s = send.send()
-
-        if protocol_choice == "2":
-            # Validate parameters for GBN.
+        # For protocols that use windowing, gather additional parameters.
+        if protocol in ["gbn", "sr"]:
             while True:
                 try:
                     window_size = int(input("Enter window size (e.g., 10): "))
@@ -89,47 +96,21 @@ class Client:
                         print("Timeout must be a positive number.")
                 except ValueError:
                     print("Invalid input. Please enter a valid number for timeout interval.")
-            s.udp_send_gbn(self.client_socket,
-                           (self.server_name, self.server_port),
-                           self.error_type,
-                           self.error_rate,
-                           file_loc if file_loc != '' else 'image/OIP.bmp',
-                           window_size,
-                           timeout_val)
-        elif protocol_choice == "3":
-            # Validate parameters for Selective Repeat.
-            while True:
-                try:
-                    window_size = int(input("Enter window size (e.g., 10): "))
-                    if window_size > 0:
-                        break
-                    else:
-                        print("Window size must be a positive integer.")
-                except ValueError:
-                    print("Invalid input. Please enter a valid integer for window size.")
-            while True:
-                try:
-                    timeout_val = float(input("Enter timeout interval in seconds (e.g., 0.05): "))
-                    if timeout_val > 0:
-                        break
-                    else:
-                        print("Timeout must be a positive number.")
-                except ValueError:
-                    print("Invalid input. Please enter a valid number for timeout interval.")
-            s.udp_send_sr(self.client_socket,
-                          (self.server_name, self.server_port),
-                          self.error_type,
-                          self.error_rate,
-                          file_loc if file_loc != '' else 'image/OIP.bmp',
-                          window_size,
-                          timeout_val)
+            s.udp_send_protocol(self.client_socket,
+                                (self.server_name, self.server_port),
+                                self.error_type,
+                                self.error_rate,
+                                protocol=protocol,
+                                image=(file_loc if file_loc != '' else 'image/OIP.bmp'),
+                                window_size=window_size,
+                                timeout_interval=timeout_val)
         else:
-            # Stop-and-Wait (RDT 3.0)
-            s.udp_send(self.client_socket,
-                       (self.server_name, self.server_port),
-                       self.error_type,
-                       self.error_rate,
-                       file_loc if file_loc != '' else 'image/OIP.bmp')
+            s.udp_send_protocol(self.client_socket,
+                                (self.server_name, self.server_port),
+                                self.error_type,
+                                self.error_rate,
+                                protocol=protocol,
+                                image=(file_loc if file_loc != '' else 'image/OIP.bmp'))
 
     def end_communication(self):
         message = 'END'
@@ -139,13 +120,13 @@ class Client:
     def main(self):
         while True:
             option = input('Select input of H (Hello), G (Get File), P (Push File), E (End):\n')
-            if option == 'H':
+            if option.upper() == 'H':
                 self.say_hello()
-            elif option == 'G':
+            elif option.upper() == 'G':
                 self.get_file()
-            elif option == 'P':
+            elif option.upper() == 'P':
                 self.push_file()
-            elif option == 'E':
+            elif option.upper() == 'E':
                 self.end_communication()
                 break
             else:

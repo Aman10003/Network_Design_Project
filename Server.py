@@ -37,12 +37,11 @@ class Server:
                     received_list = ast.literal_eval(decoded_message)  # Safely parse the list
                     error_type = received_list[0]
                     error_rate = received_list[1]
-                    print(f"Received error_type: {error_type}, error_rate: {error_rate}")  # Debugging print
-
-                    # Send data based on error type and rate
+                    protocol = received_list[2] if len(received_list) > 2 else "gbn"  # Default protocol
+                    print(f"Received error_type: {error_type}, error_rate: {error_rate}, protocol: {protocol}")
                     s = send.send()
-                    s.udp_send_gbn(serverSocket, clientAddress, error_type, error_rate, window_size=10)
-
+                    s.udp_send_protocol(serverSocket, clientAddress, error_type, error_rate,
+                                        protocol=protocol, window_size=10, timeout_interval=0.05)
                 except Exception as e:
                     print(f"Error while handling 'GET' request: {e}")
 
@@ -55,17 +54,10 @@ class Server:
                     received_list = ast.literal_eval(decoded_message)  # Safely parse the list
                     error_type = received_list[0]
                     error_rate = received_list[1]
-                    protocol_choice = received_list[2] if len(received_list) > 2 else "2"  # Defaults to GBN
-                    print(
-                        f"Received error_type: {error_type}, error_rate: {error_rate}, protocol_choice: {protocol_choice}")
-
+                    protocol = received_list[2] if len(received_list) > 2 else "gbn"
+                    print(f"Received error_type: {error_type}, error_rate: {error_rate}, protocol: {protocol}")
                     r = receive.receive()
-                    if protocol_choice == "2":
-                        r.udp_receive(serverSocket, True, error_type, error_rate, use_gbn=True)
-                    elif protocol_choice == "3":
-                        r.udp_receive_sr(serverSocket, True, error_type, error_rate, window_size=10)
-                    else:
-                        r.udp_receive(serverSocket, True, error_type, error_rate, use_gbn=False)
+                    r.udp_receive_protocol(serverSocket, True, error_type, error_rate, protocol, window_size=10)
                 except Exception as e:
 
                     print(f"Error while handling 'PUSH' request: {e}")

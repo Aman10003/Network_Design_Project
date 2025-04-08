@@ -53,7 +53,7 @@ class send:
         packet_size = 4096
         total_packets = len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
 
-        print(f"Sending {total_packets} packets...")
+        print(f"Sending {total_packets} packets using Stop-and-Wait (RDT 3.0)...")
 
         # Initial timeout values
         ERTT = 0.05  # Estimated RTT
@@ -266,8 +266,8 @@ class send:
                     if update_ui_callback is not None:
                         progress = base / total_packets
                         update_ui_callback(progress, retransmissions, duplicate_acks)
-            except (timeout, TimeoutError)  as e:
-                # Timeout occurred; retransmit all packets in the current window
+                # Continue sending in window
+            except (timeout, TimeoutError):
                 print(f"Timeout occurred. Retransmitting packets from {base} to {next_seq_num - 1}.")
                 for seq in range(base, next_seq_num):
                     pkt = packets[seq]
@@ -402,6 +402,22 @@ class send:
         print("==================================================\n")
 
         return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmissions_overhead
+
+    def udp_send_protocol(self, port: socket, dest, error_type: int, error_rate: float,
+                          protocol: str = "sw", image: str = 'image/OIP.bmp',
+                          window_size: int = 10, timeout_interval: float = 0.05,
+                          update_ui_callback=None):
+        """
+        Unified function to send data using a selectable protocol.
+        protocol: "sw" for Stop-and-Wait, "gbn" for Go-Back-N, "sr" for Selective Repeat.
+        """
+        protocol = protocol.lower()
+        if protocol == "gbn":
+            return self.udp_send_gbn(port, dest, error_type, error_rate, image, window_size, timeout_interval, update_ui_callback)
+        elif protocol == "sr":
+            return self.udp_send_sr(port, dest, error_type, error_rate, image, window_size, timeout_interval, update_ui_callback)
+        else:
+            return self.udp_send(port, dest, error_type, error_rate, image, update_ui_callback)
 
     def update_progress(self, progress, retransmissions, duplicate_acks, ack_efficiency=0, retransmission_overhead=0):
         """Update UI dynamically."""

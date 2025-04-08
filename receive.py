@@ -206,3 +206,17 @@ class receive:
             print("Image successfully saved as server_image_sr.bmp or client_image_sr.bmp")
         except Exception as e:
             print(f"Error reconstructing image: {e}")
+
+    def udp_receive_protocol(self, port: socket, server: bool, error_type: int, error_rate: float,
+                               protocol: str = "sw", window_size: int = 10):
+        """
+        Unified function to receive data using a selectable protocol.
+        protocol: "sw" for Stop-and-Wait, "gbn" for Go-Back-N, "sr" for Selective Repeat.
+        """
+        protocol = protocol.lower()
+        if protocol == "gbn":
+            return self.udp_receive(port, server, error_type, error_rate, use_gbn=True)
+        elif protocol == "sr":
+            return self.udp_receive_sr(port, server, error_type, error_rate, window_size)
+        else:
+            return self.udp_receive(port, server, error_type, error_rate, use_gbn=False)
