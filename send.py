@@ -53,6 +53,11 @@ class send:
     def calculate_total_packets(self, data_bytes, packet_size):
         return len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
 
+    def compute_metrics(self, total_packets, retransmissions, total_acks_received, unique_acks_received):
+        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received else 0
+        retrans_overhead = (retransmissions / total_packets) * 100
+        return ack_efficiency, retrans_overhead
+
     def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp',
                  update_ui_callback = None):
         """RDT 3.0 with adaptive timeout implementation."""
@@ -167,12 +172,11 @@ class send:
         print("Image data sent successfully using RDT 3.0!")
 
         # Compute efficiency metrics
-        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
-        retransmissions_overhead = retransmissions / total_packets * 100
+        ack_efficiency, retransmissions_overhead = self.compute_metrics(total_packets, retransmissions, total_acks_received, unique_acks_received)
 
         print("\n===== Performance Metrics =====")
         print(f"ACK Efficiency: {ack_efficiency:.2f}%")
-        print(f"Retransmission Overhead: {(retransmissions / total_packets) * 100:.2f}%")
+        print(f"Retransmission Overhead: {retransmissions_overhead:.2f}%")
         print("================================\n")
 
         return total_packets, retransmissions, duplicate_acks, ack_efficiency, retransmissions_overhead
@@ -287,8 +291,8 @@ class send:
         port.sendto(b'END', dest)
         print("Image data sent successfully using GBN!")
 
-        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
-        retransmissions_overhead = retransmissions / total_packets * 100
+        ack_efficiency, retransmissions_overhead = self.compute_metrics(total_packets, retransmissions, total_acks_received, unique_acks_received)
+
         print("\n===== Performance Metrics =====")
         print(f"Total ACKs Received: {total_acks_received}")
         print(f"Unique ACKs Received: {len(unique_acks_received)}")
@@ -388,8 +392,8 @@ class send:
         # Send termination signal.
         port.sendto(b'END', dest)
         print("Image data sent successfully using Selective Repeat!")
-        ack_efficiency = (len(unique_acks_received) / total_acks_received) * 100 if total_acks_received > 0 else 0
-        retransmissions_overhead = retransmissions / total_packets * 100
+        ack_efficiency, retransmissions_overhead = self.compute_metrics(total_packets, retransmissions, total_acks_received, unique_acks_received)
+
         print("\n===== Performance Metrics (Selective Repeat) =====")
         print(f"Total ACKs Received: {total_acks_received}")
         print(f"Unique ACKs Received: {len(unique_acks_received)}")
