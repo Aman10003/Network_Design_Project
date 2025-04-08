@@ -158,9 +158,9 @@ class gui:
             self.error_rate_value = ui.label().bind_text_from(self.error_rate, 'value')
 
         # Creates selection of RDT 3.0 vs GBN
-        self.transmit_type = ui.select([1, 2, 3, 4, 5], value=1)
+        self.transmit_type = ui.select([1, 2, 3], value=1)
         self.transmit_type.visible = False
-        self.transmit_type_name = ui.select({1: 'RDT 3.0', 2: 'GBN', 3: 'SR'}).bind_value((self.transmit_type))
+        self.transmit_type_name = ui.select({1: 'RDT 3.0', 2: 'GBN', 3: 'SR'}).bind_value(self.transmit_type)
 
         self.execute_button = ui.button("Execute", on_click=self.execute)
 
