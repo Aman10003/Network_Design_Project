@@ -125,11 +125,11 @@ class gui:
         self.response_textbox.value += 'Server stopped.\n'  # Append server stop message to text box
 
     def get_control(self):
-        self.error_control(True)
+        # self.error_control(True)
         self.state = 'get'
 
     def push_control(self):
-        self.error_control(True)
+        # self.error_control(True)
         self.state = 'push'
 
     def execute(self):
