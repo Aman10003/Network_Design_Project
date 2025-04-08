@@ -38,20 +38,32 @@ class send:
             return min(8192, current_size * 2)  # Increase packet size
         return current_size
 
+    def load_image_bytes(self, image_path):
+        img = Image.open(image_path)
+        numpydata = np.asarray(img)
+        return pickle.dumps(numpydata)
+
+    def simulate_packet_error(self, packet, error_type, error_rate):
+        if error_type == 5 and random.random() < error_rate:
+            return None  # Simulate drop
+        elif error_type == 3:
+            return error_gen.error_gen.packet_error(packet, error_rate)
+        return packet
+
+    def calculate_total_packets(self, data_bytes, packet_size):
+        return len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
+
     def udp_send(self, port: socket, dest, error_type: int, error_rate: float, image: str = 'image/OIP.bmp',
                  update_ui_callback = None):
         """RDT 3.0 with adaptive timeout implementation."""
-        img = Image.open(image)
-        numpydata = np.asarray(img)
 
-        # Serialize NumPy array
-        data_bytes = pickle.dumps(numpydata)
+        data_bytes = self.load_image_bytes(image)
 
         # Initialized error_gen
         eg = error_gen.error_gen()
 
         packet_size = 4096
-        total_packets = len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
+        total_packets = self.calculate_total_packets(data_bytes,packet_size)
 
         print(f"Sending {total_packets} packets using Stop-and-Wait (RDT 3.0)...")
 
@@ -81,19 +93,14 @@ class send:
             while retries < MAX_RETRIES:
                 try:
                     # Introduce packet errors if needed
-                    packet_modified = packet
-                    if error_type == 3:
-                        packet_modified = eg.packet_error(packet, error_rate)
 
                     start_time = time.time()
 
-                    # Simulate data packet loss
-                    if error_type == 5 and random.random() < error_rate:
-                        print(f">>> Simulating data packet loss for packet {sequence_number}.")
-                    else:
-                        # Send packet
-                        port.sendto(packet_modified, dest)
+                    pkt_to_send = self.simulate_packet_error(packet, error_type, error_rate)
+
+                    if pkt_to_send:
                         print(f"Sent packet {sequence_number}")
+                        port.sendto(pkt_to_send, dest)
 
                     # Adaptive timeout calculation
                     adaptive_timeout = max(0.05, min(ERTT + 4 * DevRTT, 0.5))  # between 50ms and 500ms
@@ -179,12 +186,10 @@ class send:
         timeout_interval: Fixed timeout for the oldest unacknowledged packet.
         """
         # Load image and serialize into bytes
-        img = Image.open(image)
-        numpydata = np.asarray(img)
-        data_bytes = pickle.dumps(numpydata)
+        data_bytes = self.load_image_bytes(image)
 
         packet_size = 4096
-        total_packets = len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
+        total_packets = self.calculate_total_packets(data_bytes,packet_size)
 
         # Create the list of packets
         packets = []
@@ -208,16 +213,12 @@ class send:
             # Send packets within the window
             while next_seq_num < base + window_size and next_seq_num < total_packets:
                 pkt = packets[next_seq_num]
-                # Simulate data packet loss (Option 5)
-                if error_type == 5 and random.random() < error_rate:
-                    print(f">>> Simulating data packet loss for packet {next_seq_num}.")
-                else:
-                    pkt_to_send = pkt
-                    # Simulate data packet bit-error (Option 3)
-                    if error_type == 3:
-                        pkt_to_send = eg.packet_error(pkt, error_rate)
+                pkt_to_send = self.simulate_packet_error(pkt, error_type, error_rate)
+
+                if pkt_to_send:
                     port.sendto(pkt_to_send, dest)
                     print(f"Sent packet {next_seq_num}")
+
                 # Start timer for the first unacknowledged packet
                 if base == next_seq_num:
                     timer_start = time.time()
@@ -304,12 +305,10 @@ class send:
         Sends an image file over UDP using the Selective Repeat protocol.
         """
         # Load image
-        img = Image.open(image)
-        numpydata = np.asarray(img)
-        data_bytes = pickle.dumps(numpydata)
+        data_bytes = self.load_image_bytes(image)
 
         packet_size = 4096
-        total_packets = len(data_bytes) // packet_size + (1 if len(data_bytes) % packet_size else 0)
+        total_packets = self.calculate_total_packets(data_bytes,packet_size)
 
         # Create packets with sequence numbers and checksums.
         packets = []
@@ -334,13 +333,10 @@ class send:
             while next_seq < total_packets and next_seq < base + window_size:
                 if next_seq not in window:
                     window[next_seq] = {"packet": packets[next_seq], "acked": False, "timer": time.time()}
-                    pkt_to_send = window[next_seq]["packet"]
-                    # Simulate data packet loss or bit error if needed.
-                    if error_type == 5 and random.random() < error_rate:
-                        print(f">>> Simulating data packet loss for packet {next_seq}.")
-                    else:
-                        if error_type == 3:
-                            pkt_to_send = eg.packet_error(pkt_to_send, error_rate)
+                    packet = window[next_seq]["packet"]
+                    pkt_to_send = self.simulate_packet_error(packet, error_type, error_rate)
+
+                    if pkt_to_send:
                         port.sendto(pkt_to_send, dest)
                         print(f"Sent packet {next_seq} (Selective Repeat)")
                 next_seq += 1
