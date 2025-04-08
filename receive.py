@@ -14,7 +14,7 @@ class receive:
         self.total_acks_sent = 0  # Ensure this variable is initialized
         self.unique_acks_sent = set()  # Also initialize unique ACK tracking
 
-    def ack_packet(self, index, port, address):
+    def ack_packet(self, index, port, address, error_type: int = 1, error_rate: float = 0):
         # Simulate network delay (0-100ms) before sending ACK
         delay = random.uniform(0, 0.1)
         time.sleep(delay)
@@ -27,6 +27,11 @@ class receive:
 
         # Append the checksum (2 bytes) to the ACK packet
         ack_packet = ack_seq + struct.pack("!H", ack_checksum)
+
+        if error_type == 4 and random.random() < error_rate:
+            ack_packet = None
+        elif error_type == 2:
+            ack_packet = error_gen.error_gen.packet_error(ack_packet, error_rate)
 
         # Send the 4-byte ACK packet
         port.sendto(ack_packet, address)
@@ -83,7 +88,7 @@ class receive:
                     print(f">>> Checksum error in packet {seq_num}! Discarding...")
                     # Resend the last ACK for the previous packet
                     if expected_seq_num > 0:
-                        self.ack_packet(expected_seq_num - 1, port, address)
+                        self.ack_packet(expected_seq_num - 1, port, address, error_type, error_rate)
                         print(f"Resent ACK {expected_seq_num - 1} due to checksum error.")
                     continue
 
@@ -91,7 +96,7 @@ class receive:
                 if seq_num != expected_seq_num:
                     print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
                     ack_num = max(0, expected_seq_num - 1)
-                    self.ack_packet(ack_num, port, address)
+                    self.ack_packet(ack_num, port, address, error_type, error_rate)
                     continue
 
                 # Otherwise, packet is valid.
@@ -106,7 +111,7 @@ class receive:
                 time.sleep(delay)
 
                 # Send ACK for the packet just received using the dedicated method
-                self.ack_packet(seq_num, port, address)
+                self.ack_packet(seq_num, port, address, error_type, error_rate)
 
             except Exception as e:
                 print(f"Error receiving packet: {e}")
@@ -177,12 +182,12 @@ class receive:
                 # Accept packet if within the receiver's window.
                 if seq_num < expected_seq or seq_num >= expected_seq + window_size:
                     print(f"Packet {seq_num} is outside the receiving window. Sending ACK anyway.")
-                    self.ack_packet(seq_num, port, address)
+                    self.ack_packet(seq_num, port, address, error_type, error_rate)
                     continue
 
                 # Buffer the packet and send an ACK.
                 received_data[seq_num] = data
-                self.ack_packet(seq_num, port, address)
+                self.ack_packet(seq_num, port, address, error_type, error_rate)
                 print(f"Accepted packet {seq_num} and sent ACK.")
 
                 # Slide the window if the expected packet(s) have arrived.
