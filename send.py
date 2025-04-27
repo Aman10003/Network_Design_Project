@@ -44,10 +44,21 @@ class send:
         return pickle.dumps(numpydata)
 
     def simulate_packet_error(self, packet, error_type, error_rate):
+
+        print(f"Simulate_packet_error: Incoming packet type = {type(packet)}")  # NEW DEBUG PRINT
+
+        if not isinstance(packet, (bytes, bytearray)):
+            raise TypeError(f"Simulate_packet_error expects bytes! Got {type(packet)}")
+
         if error_type == 5 and random.random() < error_rate:
             return None  # Simulate drop
         elif error_type == 3:
-            return error_gen.error_gen.packet_error(packet, error_rate)
+            print(f"Packet type(sim error): {type(packet)}")  # Debug
+            error_generator = error_gen.error_gen()  # <-- Create an instance
+            packet = error_generator.packet_error(packet, error_rate)  # <-- Now call properly
+            print(f"After packet_error, packet type: {type(packet)}")  # Debugging
+            return packet
+
         return packet
 
     def calculate_total_packets(self, data_bytes, packet_size):
@@ -63,9 +74,6 @@ class send:
         """RDT 3.0 with adaptive timeout implementation."""
 
         data_bytes = self.load_image_bytes(image)
-
-        # Initialized error_gen
-        eg = error_gen.error_gen()
 
         packet_size = 4096
         total_packets = self.calculate_total_packets(data_bytes,packet_size)
@@ -91,8 +99,15 @@ class send:
             [self.progress_bar, self.retrans_label, self.dup_ack_label, self.ack_eff_label,
              self.retrans_overhead_label] = update_ui_callback
 
+        # Send initial packet with total_packets (2 bytes)
+        init_packet = struct.pack("!H", total_packets)
+        port.sendto(init_packet, dest)
+        print(f"Sent total_packets info: {total_packets}")
+
         while sequence_number < total_packets:
             packet = self.make_packet(data_bytes, packet_size, sequence_number)
+            # print(f"Constructed packet: {packet}")  # Debug
+            print(f"Packet type: {type(packet)}")  # Debug
             retries = 0
 
             while retries < MAX_RETRIES:
@@ -102,10 +117,14 @@ class send:
                     start_time = time.time()
 
                     pkt_to_send = self.simulate_packet_error(packet, error_type, error_rate)
+                    print(f"Packet type(pkt_to_send): {type(pkt_to_send)}")  # Debug
 
+                    # Ensure that the packet to send is not None or invalid
                     if pkt_to_send:
                         print(f"Sent packet {sequence_number}")
                         port.sendto(pkt_to_send, dest)
+                    else:
+                        print(f"Packet {sequence_number} was dropped due to error.")
 
                     # Adaptive timeout calculation
                     adaptive_timeout = max(0.05, min(ERTT + 4 * DevRTT, 0.5))  # between 50ms and 500ms
@@ -212,6 +231,16 @@ class send:
         duplicate_acks = 0
         total_acks_received = 0
         unique_acks_received = set()
+
+        # Initialize ui_update values
+        if update_ui_callback is not None:
+            [self.progress_bar, self.retrans_label, self.dup_ack_label, self.ack_eff_label,
+             self.retrans_overhead_label] = update_ui_callback
+
+        # Send initial packet with total_packets (2 bytes)
+        init_packet = struct.pack("!H", total_packets)
+        port.sendto(init_packet, dest)
+        print(f"Sent total_packets info: {total_packets}")
 
         while base < total_packets:
             # Send packets within the window
@@ -336,6 +365,16 @@ class send:
         unique_acks_received = set()
         eg = error_gen.error_gen()
 
+        # Initialize ui_update values
+        if update_ui_callback is not None:
+            [self.progress_bar, self.retrans_label, self.dup_ack_label, self.ack_eff_label,
+             self.retrans_overhead_label] = update_ui_callback
+
+        # Send initial packet with total_packets (2 bytes)
+        init_packet = struct.pack("!H", total_packets)
+        port.sendto(init_packet, dest)
+        print(f"Sent total_packets info: {total_packets}")
+
         while base < total_packets:
             # Fill the window: send packets not yet sent.
             while next_seq < total_packets and next_seq < base + window_size:
@@ -431,5 +470,5 @@ class send:
         self.progress_bar.set_value(progress)
         self.retrans_label.set_text(f"Retransmissions: {retransmissions}")
         self.dup_ack_label.set_text(f"Duplicate ACKs: {duplicate_acks}")
-        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f %}")
+        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f} %")
         self.retrans_overhead_label.set_text(f"Retransmission Overhead: {retransmission_overhead:.2f} %")

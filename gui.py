@@ -115,8 +115,8 @@ class gui:
         self.progress_bar.set_value(progress)
         self.retrans_label.set_text(f"Retransmissions: {retransmissions}")
         self.dup_ack_label.set_text(f"Duplicate ACKs: {duplicate_acks}")
-        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f}")
-        self.retrans_overhead_label.set_text(f"Retransmission Overhead: {retransmission_overhead:.2f}")
+        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f} %")
+        self.retrans_overhead_label.set_text(f"Retransmission Overhead: {retransmission_overhead:.2f} %")
 
     def stop_server(self):
         message = 'END'

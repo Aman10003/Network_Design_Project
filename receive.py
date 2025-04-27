@@ -4,13 +4,18 @@ import struct
 import random
 import time
 from PIL import Image
-import error_gen
+from error_gen import error_gen
 import checksums  # Import the checksums module
 
 
 class receive:
     def __init__(self):
         """Initialize tracking variables to avoid AttributeError."""
+        self.retrans_overhead_label = None
+        self.ack_eff_label = None
+        self.dup_ack_label = None
+        self.retrans_label = None
+        self.progress_bar = None
         self.total_acks_sent = 0  # Ensure this variable is initialized
         self.unique_acks_sent = set()  # Also initialize unique ACK tracking
 
@@ -28,10 +33,12 @@ class receive:
         # Append the checksum (2 bytes) to the ACK packet
         ack_packet = ack_seq + struct.pack("!H", ack_checksum)
 
+        eg = error_gen()
+
         if error_type == 4 and random.random() < error_rate:
             ack_packet = None
         elif error_type == 2:
-            ack_packet = error_gen.error_gen.packet_error(ack_packet, error_rate)
+            ack_packet = eg.packet_error(ack_packet, error_rate)
 
         # Send the 4-byte ACK packet
         port.sendto(ack_packet, address)
@@ -47,18 +54,33 @@ class receive:
         self.unique_acks_sent.add(index)
         print(f"Sent ACK {index} with checksum {ack_checksum}, Delay: {round(delay * 1000, 2)}ms")
 
-    def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float, use_gbn=False):
+    def udp_receive(self, port: socket, server: bool, error_type: int, error_rate: float, use_gbn=False, update_ui_callback = None):
         """Receives an image file over UDP using sequence numbers and checksum."""
         mode = "GBN" if use_gbn else "Stop-and-Wait"
         print('The server is ready to receive image data' if server else 'The client is ready to receive image data')
         print(f"Receiver running in {mode} mode")
 
         received_data = {}
-        expected_seq_num = 0  # Start with an initial expected sequence number
+        expected_seq_num = 0
+        retransmissions = 0
+        duplicate_acks = 0
 
-        # Initialized error_gen
-        eg = error_gen.error_gen()
+
         port.setsockopt(SOL_SOCKET, SO_RCVBUF, 65536)  # Increase receive buffer
+
+        # Initialize ui_update values
+        if update_ui_callback is not None:
+            [self.progress_bar, self.retrans_label, self.dup_ack_label, self.ack_eff_label,
+             self.retrans_overhead_label] = update_ui_callback
+
+        # Receive total packet count from sender
+        try:
+            meta_packet, _ = port.recvfrom(1024)
+            expected_total_packets = struct.unpack("!H", meta_packet[:2])[0]
+            print(f"[Control] Expected total packets to receive: {expected_total_packets}")
+        except Exception as e:
+            print(f"Error receiving metadata: {e}")
+            return
 
         while True:
             try:
@@ -89,6 +111,7 @@ class receive:
                     # Resend the last ACK for the previous packet
                     if expected_seq_num > 0:
                         self.ack_packet(expected_seq_num - 1, port, address, error_type, error_rate)
+                        retransmissions += 1
                         print(f"Resent ACK {expected_seq_num - 1} due to checksum error.")
                     continue
 
@@ -97,6 +120,7 @@ class receive:
                     print(f">>> Out-of-order packet! Expected {expected_seq_num}, got {seq_num}. Ignoring...")
                     ack_num = max(0, expected_seq_num - 1)
                     self.ack_packet(ack_num, port, address, error_type, error_rate)
+                    duplicate_acks += 1
                     continue
 
                 # Otherwise, packet is valid.
@@ -112,6 +136,12 @@ class receive:
 
                 # Send ACK for the packet just received using the dedicated method
                 self.ack_packet(seq_num, port, address, error_type, error_rate)
+
+                if self.progress_bar:
+                    progress = (len(received_data) / expected_total_packets) * 100
+                    ack_eff = (len(self.unique_acks_sent) / self.total_acks_sent) * 100 if self.total_acks_sent > 0 else 0
+                    overhead = ((self.total_acks_sent - len(self.unique_acks_sent)) / self.total_acks_sent) * 100 if self.total_acks_sent > 0 else 0
+                    self.update_progress(progress, retransmissions, duplicate_acks, ack_eff, overhead)
 
             except Exception as e:
                 print(f"Error receiving packet: {e}")
@@ -146,7 +176,7 @@ class receive:
             print(f"ACK Efficiency: {ack_efficiency:.2f}%")
             print("================================\n")
 
-    def udp_receive_sr(self, port: socket, server: bool, error_type: int, error_rate: float, window_size: int = 10):
+    def udp_receive_sr(self, port: socket, server: bool, error_type: int, error_rate: float, window_size: int = 10, update_ui_callback = None):
         """
         Receives an image file over UDP using the Selective Repeat protocol.
         """
@@ -156,7 +186,24 @@ class receive:
 
         received_data = {}  # Buffer to store packets by sequence number
         expected_seq = 0
+        retransmissions = 0
+        duplicate_acks = 0
+
         port.setsockopt(SOL_SOCKET, SO_RCVBUF, 65536)
+
+        # Initialize ui_update values
+        if update_ui_callback is not None:
+            [self.progress_bar, self.retrans_label, self.dup_ack_label, self.ack_eff_label,
+             self.retrans_overhead_label] = update_ui_callback
+
+        # Receive total packet count from sender
+        try:
+            meta_packet, _ = port.recvfrom(1024)
+            expected_total_packets = struct.unpack("!H", meta_packet[:2])[0]
+            print(f"[Control] Expected total packets to receive: {expected_total_packets}")
+        except Exception as e:
+            print(f"Error receiving metadata: {e}")
+            return
 
         while True:
             try:
@@ -177,12 +224,14 @@ class receive:
 
                 if received_checksum != computed_checksum:
                     print(f"Checksum error in packet {seq_num}. Discarding.")
+                    retransmissions += 1
                     continue
 
                 # Accept packet if within the receiver's window.
                 if seq_num < expected_seq or seq_num >= expected_seq + window_size:
                     print(f"Packet {seq_num} is outside the receiving window. Sending ACK anyway.")
                     self.ack_packet(seq_num, port, address, error_type, error_rate)
+                    duplicate_acks += 1
                     continue
 
                 # Buffer the packet and send an ACK.
@@ -193,6 +242,13 @@ class receive:
                 # Slide the window if the expected packet(s) have arrived.
                 while expected_seq in received_data:
                     expected_seq += 1
+
+                if self.progress_bar:
+                    progress = (len(received_data) / expected_total_packets) * 100
+                    ack_eff = (len(self.unique_acks_sent) / self.total_acks_sent) * 100 if self.total_acks_sent > 0 else 0
+                    overhead = ((self.total_acks_sent - len(self.unique_acks_sent)) / self.total_acks_sent) * 100 if self.total_acks_sent > 0 else 0
+                    self.update_progress(progress, retransmissions, duplicate_acks, ack_eff, overhead)
+
             except Exception as e:
                 print(f"Error receiving packet: {e}")
                 break
@@ -225,3 +281,13 @@ class receive:
             return self.udp_receive_sr(port, server, error_type, error_rate, window_size)
         else:
             return self.udp_receive(port, server, error_type, error_rate, use_gbn=False)
+        
+    
+    def update_progress(self, progress, retransmissions, duplicate_acks, ack_efficiency=0, retransmission_overhead=0):
+        """Update UI dynamically."""
+        self.progress_bar.set_value(progress)
+        self.retrans_label.set_text(f"Retransmissions: {retransmissions}")
+        self.dup_ack_label.set_text(f"Duplicate ACKs: {duplicate_acks}")
+        self.ack_eff_label.set_text(f"ACK Efficiency: {ack_efficiency:.2f} %")
+        self.retrans_overhead_label.set_text(f"Retransmission Overhead: {retransmission_overhead:.2f} %")
+

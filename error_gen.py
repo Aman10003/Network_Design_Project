@@ -3,14 +3,22 @@ import random
 
 class error_gen:
 
-    def packet_error(self, packet, error_rate: float = 0):
+    def packet_error(self, packet: bytes, error_rate: float = 0):
+        print(f"Packet_error: Incoming packet type = {type(packet)}")  # NEW DEBUG PRINT
+
+        if not isinstance(packet, (bytes, bytearray)):
+            raise TypeError(f"Packet_error expects bytes! Got {type(packet)}")
+
         state = random.random()
         if state < error_rate:
             print(f">>> Corrupting packet (Triggered at error_rate={error_rate})")  # Debug
-            return self.corruption(packet)
+            # Ensure packet is bytes before processing it
+            # if isinstance(packet, float):
+            #     packet = bytes(str(packet), 'utf-8')  # or handle it properly
+            return bytes(self.corruption(packet))
         else:
             print(">>> Sending packet without errors.")  # Debug
-            return packet
+            return bytes(packet)
 
     def corruption(self, packet: bytes):
         """Simulate corruption on a packet's byte."""
@@ -37,6 +45,8 @@ class error_gen:
 
                 # Flip the chosen bit in the chosen byte
                 packet[byte_index] ^= (1 << bit_index)  # XOR with bit mask
+
+        print(f"Packet type(Corruption): {type(packet)}")  # Debug
 
         # Return the corrupted bytes
         return bytes(packet)
