@@ -42,7 +42,7 @@ class Client:
                         clientSocket,
                         (serverName, serverPort),
                         self.error_type,
-                        self.error_rate
+                        self.error_rate,
                         use_gbn = True,
                         window_size = 10
                     )
