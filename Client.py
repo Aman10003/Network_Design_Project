@@ -2,6 +2,7 @@
 from socket import *
 import receive
 import send
+from tcp import TCPSender, TCPReceiver
 
 
 class Client:
@@ -48,14 +49,41 @@ class Client:
         self.error_selection()
         # Prompt for protocol selection.
         while True:
-            protocol_choice = input("Choose protocol for GET: 1 for Stop-and-Wait, 2 for GBN, 3 for Selective Repeat: ").strip()
-            if protocol_choice in ["1", "2", "3"]:
+            protocol_choice = input(
+                "Choose protocol for GET: 1 for Stop-and-Wait, 2 for GBN, 3 for Selective Repeat, 4 for TCP: "
+            ).strip()
+            if protocol_choice in ["1", "2", "3", "4"]:
                 break
             else:
-                print("Invalid protocol choice. Please enter 1, 2, or 3.")
-        protocol = "sw" if protocol_choice == "1" else ("gbn" if protocol_choice == "2" else "sr")
+                print("Invalid protocol choice. Please enter 1, 2, 3 or 4.")
+        protocol = {
+            "1": "sw",
+            "2": "gbn",
+            "3": "sr",
+            "4": "tcp"
+        }[protocol_choice]
+
         message = str([self.error_type, self.error_rate, protocol])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
+
+        # --- TCP branch ---
+        if protocol == "tcp":
+
+            # 1) 3-way handshake
+            tcp = TCPSender(self.client_socket, (self.server_name, self.server_port))
+            tcp.connect()
+
+            # 2) receive file
+            receiver = TCPReceiver(self.client_socket, (self.server_name, self.server_port))
+            receiver.listen()
+            data = receiver.recv()
+
+            with open("downloaded_file.bin", "wb") as f:
+                    f.write(data)
+            tcp.close()
+            print("File received via TCP.")
+            return
+
         r = receive.receive()
         r.udp_receive_protocol(self.client_socket, False, self.error_type, self.error_rate, protocol)
 
@@ -66,16 +94,38 @@ class Client:
         # Prompt for protocol selection.
         while True:
             protocol_choice = input(
-                "Choose protocol: 1 for RDT 3.0 (Stop-and-Wait), 2 for GBN, 3 for Selective Repeat: ").strip()
-            if protocol_choice in ["1", "2", "3"]:
+                "Choose protocol for GET: 1 for Stop-and-Wait, 2 for GBN, 3 for Selective Repeat, 4 for TCP: "
+            ).strip()
+            if protocol_choice in ["1", "2", "3", "4"]:
                 break
             else:
-                print("Invalid protocol choice. Please enter 1, 2, or 3.")
-        protocol = "sw" if protocol_choice == "1" else ("gbn" if protocol_choice == "2" else "sr")
+                print("Invalid protocol choice. Please enter 1, 2, 3 or 4.")
+
+        protocol = {
+            "1": "sw",
+            "2": "gbn",
+            "3": "sr",
+            "4": "tcp"
+        }[protocol_choice]
+
         message = str([self.error_type, self.error_rate, protocol])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         file_loc = input("If you want a custom file, input file path now else press enter: ").strip()
         s = send.send()
+
+        if protocol == "tcp":
+
+            tcp = TCPSender(self.client_socket, (self.server_name, self.server_port))
+            tcp.connect()
+
+            with open(file_loc or "image/OIP.bmp", "rb") as f:
+                data = f.read()
+            tcp.send(data)
+            tcp.close()
+            print("File sent via TCP.")
+
+            return
+
         # For protocols that use windowing, gather additional parameters.
         if protocol in ["gbn", "sr"]:
             while True:

@@ -2,6 +2,7 @@ from socket import *
 import receive
 import send
 import ast  # To safely convert string representation of a list back to a list
+from tcp import TCPSender, TCPReceiver
 
 
 class Server:
@@ -39,9 +40,29 @@ class Server:
                     error_rate = received_list[1]
                     protocol = received_list[2] if len(received_list) > 2 else "gbn"  # Default protocol
                     print(f"Received error_type: {error_type}, error_rate: {error_rate}, protocol: {protocol}")
-                    s = send.send()
-                    s.udp_send_protocol(serverSocket, clientAddress, error_type, error_rate,
-                                        protocol=protocol, window_size=10, timeout_interval=0.05)
+
+                    if protocol == "tcp":
+
+                        # passive open → handshake
+                        receiver = TCPReceiver(serverSocket, clientAddress)
+                        receiver.listen()
+
+                        # load file and send
+                        with open("image/OIP.bmp", "rb") as f:
+                            file_data = f.read()
+                        sender = TCPSender(serverSocket, clientAddress)
+                        sender.send(file_data)
+                        sender.close()
+                        print("Served GET via TCP.")
+
+                    else:
+                        s = send.send()
+                        s.udp_send_protocol(serverSocket, clientAddress,
+                                                error_type, error_rate,
+                                                protocol = protocol,
+                                                window_size = 10,
+                                                timeout_interval = 0.05)
+
                 except Exception as e:
                     print(f"Error while handling 'GET' request: {e}")
 
@@ -56,8 +77,23 @@ class Server:
                     error_rate = received_list[1]
                     protocol = received_list[2] if len(received_list) > 2 else "gbn"
                     print(f"Received error_type: {error_type}, error_rate: {error_rate}, protocol: {protocol}")
-                    r = receive.receive()
-                    r.udp_receive_protocol(serverSocket, True, error_type, error_rate, protocol, window_size=10)
+
+                    if protocol == "tcp":
+
+                        receiver = TCPReceiver(serverSocket, clientAddress)
+                        receiver.listen()
+                        data = receiver.recv()
+
+                        with open("uploaded_file.bin", "wb") as f:
+                            f.write(data)
+                        print("Received PUSH via TCP.")
+                    else:
+                        r = receive.receive()
+                        r.udp_receive_protocol(serverSocket, True,
+                                                        error_type, error_rate,
+                                                        protocol = protocol,
+                                                        window_size = 10)
+
                 except Exception as e:
 
                     print(f"Error while handling 'PUSH' request: {e}")
