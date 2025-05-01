@@ -19,8 +19,14 @@ class Server:
             print("Waiting for client messages...")
             try:
                 message, clientAddress = serverSocket.recvfrom(2048)
-                message = message.decode()
-                print(f"Received message: {message} from {clientAddress}")  # Debugging message
+                # Only decode if it's a control message, not TCP data
+                try:
+                    decoded_message = message.decode()
+                    print(f"Received message: {decoded_message} from {clientAddress}")
+                    message = decoded_message  # Use the decoded message for further processing
+                except UnicodeDecodeError:
+                    # This is likely binary data (TCP segment), don't try to decode
+                    print(f"Received binary data from {clientAddress}")
             except timeout:
                 print("No message received, continuing...")
                 continue  # Go back to waiting for a new message
@@ -81,12 +87,12 @@ class Server:
                     if protocol == "tcp":
 
                         receiver = TCPReceiver(serverSocket, clientAddress)
-                        receiver.listen()
-                        data = receiver.recv()
+                        if receiver.listen():  # Check if handshake was successful
+                            data = receiver.recv()
 
-                        with open("uploaded_file.bin", "wb") as f:
-                            f.write(data)
-                        print("Received PUSH via TCP.")
+                            with open("uploaded_file.bin", "wb") as f:
+                                f.write(data)
+                            print("Received PUSH via TCP.")
                     else:
                         r = receive.receive()
                         r.udp_receive_protocol(serverSocket, True,

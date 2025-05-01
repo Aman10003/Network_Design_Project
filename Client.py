@@ -75,7 +75,6 @@ class Client:
 
             # 2) receive file
             receiver = TCPReceiver(self.client_socket, (self.server_name, self.server_port))
-            receiver.listen()
             data = receiver.recv()
 
             with open("downloaded_file.bin", "wb") as f:
