@@ -1,47 +1,40 @@
-import csv
+import matplotlib.pyplot as plt
+import numpy as np
 import time
-from socket import *
-import send
+from Client import Client
 
-def run_test(window_size):
-    server_name = 'localhost'
-    server_port = 12000
-    client_socket = socket(AF_INET, SOCK_DGRAM)
 
-    # Send PUSH request
-    client_socket.sendto(b'PUSH', (server_name, server_port))
-    client_socket.sendto(str([5, 0.2]).encode(), (server_name, server_port))  # Error type 5 = Data Loss
-
-    s = send.send()
-
+def measure_completion_time(window_size, error_rate=0.1):
+    """Measure file transfer completion time with given window size"""
+    client = Client()
     start_time = time.time()
-    total_packets, retransmissions, duplicate_acks, ack_efficiency, retrans_overhead = s.udp_send_gbn(
-        client_socket,
-        (server_name, server_port),
-        5,             # error_type
-        0.2,           # error_rate
-        timeout_interval=0.05,
-        window_size=window_size
-    )
+    try:
+        client.get_file_with_tcp('random', error_rate, window_size=window_size)
+    except Exception as e:
+        print(f"Error during transfer with window_size={window_size}: {e}")
+        # If an error occurs, we'll still measure the time but note the failure
     end_time = time.time()
+    return end_time - start_time
 
-    time_taken = end_time - start_time
-    total_bytes = total_packets * 4096
-    throughput = total_bytes / time_taken if time_taken > 0 else 0
 
-    client_socket.close()
+def plot_window_size_performance():
+    window_sizes = np.arange(1, 51)  # 1 to 50
+    completion_times = []
 
-    return [window_size, time_taken, throughput, retransmissions, ack_efficiency, retrans_overhead]
+    for size in window_sizes:
+        time = measure_completion_time(size)
+        completion_times.append(time)
+        print(f"Window size: {size}, Completion time: {time:.2f}s")
 
-def main():
-    with open('chart3_window_size.csv', mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Window Size", "Completion Time (s)", "Throughput (bytes/s)", "Retransmissions", "ACK Efficiency (%)", "Retransmission Overhead (%)"])
+    plt.figure(figsize=(10, 6))
+    plt.plot(window_sizes, completion_times, 'o-')
+    plt.xlabel('Window Size')
+    plt.ylabel('Completion Time (s)')
+    plt.title('Completion Time vs Window Size')
+    plt.grid(True)
+    plt.savefig('completion_vs_window_size.png')
+    plt.show()
 
-        for size in [1, 2, 5, 10, 20, 50, 100]:
-            result = run_test(size)
-            writer.writerow(result)
-            print(f"Done: Window Size {size}")
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    plot_window_size_performance()

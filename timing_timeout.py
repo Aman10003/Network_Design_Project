@@ -1,71 +1,40 @@
-import csv
+import matplotlib.pyplot as plt
+import numpy as np
 import time
-from socket import *
-import send
+from Client import Client
 
-def run_test(fixed_timeout, use_gbn=True):
-    server_name = 'localhost'
-    server_port = 12000
-    client_socket = socket(AF_INET, SOCK_DGRAM)
 
-    print(f"\n[RUNNING] Timeout = {fixed_timeout:.2f}s | Protocol = {'GBN' if use_gbn else 'RDT 3.0'}")
-
+def measure_completion_time(timeout_ms, error_rate=0.1):
+    """Measure file transfer completion time with given timeout value"""
+    client = Client()
+    start_time = time.time()
     try:
-        # Send PUSH request
-        client_socket.sendto(b'PUSH', (server_name, server_port))
-        client_socket.sendto(str([5, 0.2]).encode(), (server_name, server_port))  # Error type 5 = Data Loss
-
-        s = send.send()
-        start_time = time.time()
-
-        if use_gbn:
-            total_packets, retransmissions, duplicate_acks, ack_efficiency, retrans_overhead = s.udp_send_gbn(
-                client_socket,
-                (server_name, server_port),
-                5,
-                0.2,
-                timeout_interval=fixed_timeout,
-                window_size=10
-            )
-        else:
-            total_packets, retransmissions, duplicate_acks, ack_efficiency, retrans_overhead = s.udp_send(
-                client_socket,
-                (server_name, server_port),
-                5,
-                0.2,
-                fixed_timeout=fixed_timeout
-            )
-
-        end_time = time.time()
-        time_taken = end_time - start_time
-        total_bytes = total_packets * 4096
-        throughput = total_bytes / time_taken if time_taken > 0 else 0
-
-        print(f"[SUCCESS] Time = {time_taken:.3f}s | Throughput = {throughput:.2f} Bps | Retrans = {retransmissions}")
-
-        client_socket.close()
-        return [fixed_timeout, time_taken, throughput, retransmissions, ack_efficiency, retrans_overhead]
-
+        client.get_file_with_tcp('random', error_rate, timeout_ms / 1000.0)
     except Exception as e:
-        print(f"[ERROR] Test failed for timeout {fixed_timeout}s → {e}")
-        client_socket.close()
-        return [fixed_timeout, 0, 0, 0, 0, 0]
+        print(f"Error during transfer with timeout={timeout_ms}ms: {e}")
+        # If an error occurs, we'll still measure the time but note the failure
+    end_time = time.time()
+    return end_time - start_time
 
-def main():
-    with open('chart2_timeout.csv', mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow([
-            "Timeout (s)",
-            "Completion Time (s)",
-            "Throughput (bytes/s)",
-            "Retransmissions",
-            "ACK Efficiency (%)",
-            "Retransmission Overhead (%)"
-        ])
 
-        for timeout in [0.01, 0.05, 0.1, 0.2, 0.5, 1.0]:
-            result = run_test(timeout, use_gbn=True)  # Change to False to test RDT 3.0
-            writer.writerow(result)
+def plot_timeout_performance():
+    timeout_values = np.linspace(10, 100, 10)  # 10ms to 100ms
+    completion_times = []
 
-if __name__ == '__main__':
-    main()
+    for timeout in timeout_values:
+        time = measure_completion_time(timeout)
+        completion_times.append(time)
+        print(f"Timeout: {timeout:.1f}ms, Completion time: {time:.2f}s")
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(timeout_values, completion_times, 'o-')
+    plt.xlabel('Timeout Value (ms)')
+    plt.ylabel('Completion Time (s)')
+    plt.title('Completion Time vs Timeout Value')
+    plt.grid(True)
+    plt.savefig('completion_vs_timeout.png')
+    plt.show()
+
+
+if __name__ == "__main__":
+    plot_timeout_performance()

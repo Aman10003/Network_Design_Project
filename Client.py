@@ -13,6 +13,65 @@ class Client:
         self.error_type = 1
         self.error_rate = 0
 
+    def get_file_with_tcp(self, error_type='random', error_rate=0.1, timeout=0.05, window_size=10):
+        """
+        Get file using TCP with configurable parameters
+
+        Args:
+            error_type (str): Type of error ('random', 'ack', 'data')
+            error_rate (float): Error rate (0.0 to 1.0)
+            timeout (float): Timeout value in seconds
+            window_size (int): Initial window size
+
+        Returns:
+            TCPSender: The sender object with collected metrics
+        """
+        # Send GET request
+        self.client_socket.sendto("GET".encode(), (self.server_name, self.server_port))
+
+        # Send error parameters and protocol
+        params = [error_type, error_rate, "tcp"]
+        self.client_socket.sendto(str(params).encode(), (self.server_name, self.server_port))
+
+        # Configure TCP parameters
+        sender = TCPSender(self.client_socket, (self.server_name, self.server_port))
+        sender.cwnd = window_size  # Set initial window size
+        sender.ERTT = timeout  # Set initial RTT estimate
+        sender.DevRTT = timeout / 2  # Set initial RTT deviation
+
+        # Connect to server
+        try:
+            sender.connect()
+
+            # Receive file
+            receiver = TCPReceiver(self.client_socket, (self.server_name, self.server_port))
+            try:
+                data = receiver.recv()
+
+                # Only write to file if we received data
+                if data:
+                    with open("downloaded_file.bmp", "wb") as f:
+                        f.write(data)
+                    print(f"File received via TCP ({len(data)} bytes).")
+                else:
+                    print("No data received from server.")
+            except Exception as e:
+                print(f"Error receiving data: {e}")
+                # Continue to return sender for metrics even if receive fails
+
+            # Try to close the connection gracefully
+            try:
+                sender.close()
+            except Exception as e:
+                print(f"Error closing connection: {e}")
+
+        except Exception as e:
+            print(f"Error connecting to server: {e}")
+            # If we couldn't connect, we still want to return the sender object
+            # but it won't have useful metrics
+
+        return sender  # Return sender object for metrics plotting
+
     def error_selection(self):
         while True:
             try:

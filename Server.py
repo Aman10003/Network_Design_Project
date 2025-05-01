@@ -57,9 +57,17 @@ class Server:
                         with open("image/OIP.bmp", "rb") as f:
                             file_data = f.read()
                         sender = TCPSender(serverSocket, clientAddress)
-                        sender.send(file_data)
-                        sender.close()
-                        print("Served GET via TCP.")
+                        try:
+                            sender.send(file_data)
+                            sender.close()
+                            print("Served GET via TCP.")
+                        except Exception as e:
+                            print(f"Error in TCP send: {e}")
+                            # Try to close the connection gracefully
+                            try:
+                                sender.close()
+                            except:
+                                pass
 
                     else:
                         s = send.send()

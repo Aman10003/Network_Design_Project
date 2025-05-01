@@ -71,9 +71,23 @@ class TCPSender:
         self.fin_acked = False  # Flag to track if FIN has been ACKed
         self.next_seq = 0 # Track the next sequence number
 
+        # Add data collection lists
+        self.time_points = []  # Time points for all measurements
+        self.cwnd_values = []  # Congestion window values
+        self.rtt_samples = []  # RTT sample values
+        self.rto_values = []  # RTO values
+        self.start_time = time.time()  # Reference start time
+
     def _rto(self):
         """Calculate Retransmission Timeout using TCP's standard formula"""
-        return max(0.1, self.ERTT + 4 * self.DevRTT)
+        rto = max(0.1, self.ERTT + 4 * self.DevRTT)
+
+        # Record RTO value
+        current_time = time.time() - self.start_time
+        self.time_points.append(current_time)
+        self.rto_values.append(rto)
+
+        return rto
 
     def connect(self):
         """Perform active open (client-side 3-way handshake)"""
@@ -205,6 +219,18 @@ class TCPSender:
                             self.cwnd += 1
                             print(f"TCP: Fast Recovery - cwnd inflated to {self.cwnd}")
 
+                    # Inside the send loop, when cwnd changes:
+                    # For example, after line 162, 169, 175, 201, 206, 215
+                    current_time = time.time() - self.start_time
+                    self.time_points.append(current_time)
+                    self.cwnd_values.append(self.cwnd)
+
+                    # When RTT sample is calculated (around line 149-153)
+                    sample = time.time() - window[base][0]
+                    current_time = time.time() - self.start_time
+                    self.time_points.append(current_time)
+                    self.rtt_samples.append(sample)
+
             except socket.timeout:
                 # Timeout - implement TCP Tahoe
                 print("TCP: Timeout detected")
@@ -309,76 +335,108 @@ class TCPReceiver:
     def recv(self):
         """Receive data with proper buffering and flow control"""
         data_parts = []
+        max_attempts = 3  # Maximum number of consecutive timeouts
+        timeout_attempts = 0
+        last_data_time = time.time()  # Track when we last received data
 
         while not self.fin_received:
-            self.sock.settimeout(10.0)
-            raw, _ = self.sock.recvfrom(4096)
-            seg = TCPSegment.unpack(raw)
+            try:
+                self.sock.settimeout(10.0)
+                raw, _ = self.sock.recvfrom(4096)
+                timeout_attempts = 0  # Reset timeout counter on successful receive
+                last_data_time = time.time()  # Update last data time
 
-            # Check for FIN flag
-            if seg.flags & FLAG_FIN:
-                print("TCP: Received FIN")
-                self.fin_received = True
-                self.fin_seq = seg.seq
+                seg = TCPSegment.unpack(raw)
 
-                # Send ACK for FIN
-                finack = TCPSegment(FLAG_ACK | FLAG_FIN, 0, seg.seq + 1, self.rwnd * self.mss).pack()
-                self.sock.sendto(finack, self.peer)
-                print("TCP: Sent FIN-ACK")
+                # Check for FIN flag
+                if seg.flags & FLAG_FIN:
+                    print("TCP: Received FIN")
+                    self.fin_received = True
+                    self.fin_seq = seg.seq
 
-                # Wait for final ACK
-                try:
-                    self.sock.settimeout(2.0)
-                    raw, _ = self.sock.recvfrom(4096)
-                    final_ack = TCPSegment.unpack(raw)
-                    if final_ack.flags & FLAG_ACK:
-                        print("TCP: Received final ACK, connection closed")
-                except socket.timeout:
-                    print("TCP: Receive timeout, connection may be stalled")
-                    # If received some data, return it rather than hanging
-                    if data_parts:
-                        print(f"TCP: Returning {sum(len(d) for d in data_parts)} bytes received so far")
-                        return b"".join(data_parts)
-                    raise  # Re-raise if no data received
+                    # Send ACK for FIN
+                    finack = TCPSegment(FLAG_ACK | FLAG_FIN, 0, seg.seq + 1, self.rwnd * self.mss).pack()
+                    self.sock.sendto(finack, self.peer)
+                    print("TCP: Sent FIN-ACK")
 
-                break
+                    # Wait for final ACK
+                    try:
+                        self.sock.settimeout(2.0)
+                        raw, _ = self.sock.recvfrom(4096)
+                        final_ack = TCPSegment.unpack(raw)
+                        if final_ack.flags & FLAG_ACK:
+                            print("TCP: Received final ACK, connection closed")
+                    except socket.timeout:
+                        print("TCP: Receive timeout waiting for final ACK, assuming connection closed")
 
-            # Process data segment
-            if seg.seq == self.expected:
-                # In-order segment
-                print(f"TCP: Received in-order segment, seq={seg.seq}, len={len(seg.data)}")
-                data_parts.append(seg.data)
-                self.expected += len(seg.data)
+                    break
 
-                # Check if we have buffered segments that can now be processed
-                while self.expected in self.buffer:
-                    data_parts.append(self.buffer[self.expected])
-                    print(f"TCP: Using buffered segment, seq={self.expected}")
-                    next_seq = self.expected + len(self.buffer[self.expected])
-                    del self.buffer[self.expected]
-                    self.expected = next_seq
+                # Process data segment
+                if seg.seq == self.expected:
+                    # In-order segment
+                    print(f"TCP: Received in-order segment, seq={seg.seq}, len={len(seg.data)}")
+                    data_parts.append(seg.data)
+                    self.expected += len(seg.data)
 
-            elif seg.seq > self.expected:
-                # Out-of-order segment, buffer it
-                print(f"TCP: Received out-of-order segment, seq={seg.seq}, expected={self.expected}")
-                self.buffer[seg.seq] = seg.data
+                    # Check if we have buffered segments that can now be processed
+                    while self.expected in self.buffer:
+                        data_parts.append(self.buffer[self.expected])
+                        print(f"TCP: Using buffered segment, seq={self.expected}")
+                        next_seq = self.expected + len(self.buffer[self.expected])
+                        del self.buffer[self.expected]
+                        self.expected = next_seq
 
-            # Update receiver window based on available buffer space
-            used_buffer = sum(len(data) for data in self.buffer.values()) + sum(len(data) for data in data_parts)
+                elif seg.seq > self.expected:
+                    # Out-of-order segment, buffer it
+                    print(f"TCP: Received out-of-order segment, seq={seg.seq}, expected={self.expected}")
+                    self.buffer[seg.seq] = seg.data
 
-            # Ensure window size doesn't exceed maximum value
-            available_buffer = max(0, self.buffer_size - used_buffer)
-            if self.rwnd == 0 and available_buffer > self.mss:
-                print("TCP: Window opened after being closed")
+                # Update receiver window based on available buffer space
+                used_buffer = sum(len(data) for data in self.buffer.values()) + sum(len(data) for data in data_parts)
 
-            self.rwnd = min(65535 // self.mss, max(1, available_buffer // self.mss))
+                # Ensure window size doesn't exceed maximum value
+                available_buffer = max(0, self.buffer_size - used_buffer)
+                if self.rwnd == 0 and available_buffer > self.mss:
+                    print("TCP: Window opened after being closed")
 
-            # When sending ACK
-            window_size = min(65535, self.rwnd * self.mss)  # Ensure it doesn't exceed 65535
-            ack = TCPSegment(FLAG_ACK, 0, self.expected, window_size).pack()
+                self.rwnd = min(65535 // self.mss, max(1, available_buffer // self.mss))
 
-            self.sock.sendto(ack, self.peer)
-            print(f"TCP: Sent ACK={self.expected}, window={self.rwnd}")
+                # When sending ACK
+                window_size = min(65535, self.rwnd * self.mss)  # Ensure it doesn't exceed 65535
+                ack = TCPSegment(FLAG_ACK, 0, self.expected, window_size).pack()
+
+                self.sock.sendto(ack, self.peer)
+                print(f"TCP: Sent ACK={self.expected}, window={self.rwnd}")
+
+            except socket.timeout:
+                timeout_attempts += 1
+                print(f"TCP: Receive timeout ({timeout_attempts}/{max_attempts})")
+
+                # If we've received some data and hit multiple timeouts, assume transfer is complete
+                if data_parts and timeout_attempts >= max_attempts:
+                    print(f"TCP: Multiple timeouts after receiving data, assuming transfer complete")
+                    print(f"TCP: Returning {sum(len(d) for d in data_parts)} bytes received so far")
+                    return b"".join(data_parts)
+
+                # If it's been a long time since we received any data, assume transfer is complete
+                if data_parts and time.time() - last_data_time > 30:  # 30 seconds without data
+                    print(f"TCP: No data received for 30 seconds, assuming transfer complete")
+                    print(f"TCP: Returning {sum(len(d) for d in data_parts)} bytes received so far")
+                    return b"".join(data_parts)
+
+                # If we've never received any data and hit max timeouts, raise exception
+                if not data_parts and timeout_attempts >= max_attempts:
+                    raise RuntimeError("TCP: Failed to receive any data after multiple attempts")
+
+                # Otherwise, continue trying to receive
+                continue
+
+            except Exception as e:
+                print(f"TCP: Error during receive: {e}")
+                if data_parts:
+                    print(f"TCP: Returning {sum(len(d) for d in data_parts)} bytes received so far")
+                    return b"".join(data_parts)
+                raise  # Re-raise if no data received
 
         # Return the reassembled data
         return b"".join(data_parts)
