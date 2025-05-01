@@ -90,7 +90,7 @@ class Server:
                         if receiver.listen():  # Check if handshake was successful
                             data = receiver.recv()
 
-                            with open("uploaded_file.bin", "wb") as f:
+                            with open("uploaded_file.bmp", "wb") as f:
                                 f.write(data)
                             print("Received PUSH via TCP.")
                     else:

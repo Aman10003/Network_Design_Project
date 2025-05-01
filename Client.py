@@ -77,7 +77,7 @@ class Client:
             receiver = TCPReceiver(self.client_socket, (self.server_name, self.server_port))
             data = receiver.recv()
 
-            with open("downloaded_file.bin", "wb") as f:
+            with open("downloaded_file.bmp", "wb") as f:
                     f.write(data)
             tcp.close()
             print("File received via TCP.")
