@@ -160,11 +160,13 @@ class TCPSender:
 
                     if acknum > base:
                         # New ACK received
-                        sample = time.time() - window[base][0]
-                        # Update RTT estimators
-                        self.ERTT = (1 - self.alpha) * self.ERTT + self.alpha * sample
-                        self.DevRTT = (1 - self.beta) * self.DevRTT + self.beta * abs(sample - self.ERTT)
-                        print(f"TCP: RTT sample={sample:.4f}s, ERTT={self.ERTT:.4f}s, DevRTT={self.DevRTT:.4f}s")
+                        # Check if base exists in window before calculating RTT
+                        if base in window:
+                            sample = time.time() - window[base][0]
+                            # Update RTT estimators
+                            self.ERTT = (1 - self.alpha) * self.ERTT + self.alpha * sample
+                            self.DevRTT = (1 - self.beta) * self.DevRTT + self.beta * abs(sample - self.ERTT)
+                            print(f"TCP: RTT sample={sample:.4f}s, ERTT={self.ERTT:.4f}s, DevRTT={self.DevRTT:.4f}s")
 
                         # Reset duplicate ACK counter
                         self.dup_acks = 0
@@ -226,10 +228,11 @@ class TCPSender:
                     self.cwnd_values.append(self.cwnd)
 
                     # When RTT sample is calculated (around line 149-153)
-                    sample = time.time() - window[base][0]
-                    current_time = time.time() - self.start_time
-                    self.time_points.append(current_time)
-                    self.rtt_samples.append(sample)
+                    if base in window:
+                        sample = time.time() - window[base][0]
+                        current_time = time.time() - self.start_time
+                        self.time_points.append(current_time)
+                        self.rtt_samples.append(sample)
 
             except socket.timeout:
                 # Timeout - implement TCP Tahoe
