@@ -2,6 +2,7 @@ from socket import *
 import receive
 import send
 import ast  # To safely convert string representation of a list back to a list
+import json
 from tcp import TCPSender, TCPReceiver
 
 
@@ -41,10 +42,16 @@ class Server:
                 try:
                     error_message, clientAddress = serverSocket.recvfrom(1024)  # Buffer size of 1024 bytes
                     decoded_message = error_message.decode()
-                    received_list = ast.literal_eval(decoded_message)  # Safely parse the list
-                    error_type = received_list[0]
-                    error_rate = received_list[1]
-                    protocol = received_list[2] if len(received_list) > 2 else "gbn"  # Default protocol
+                    # Try to parse the message as JSON
+                    try:
+                        received_list = json.loads(decoded_message)  # Parse JSON data
+                        error_type = received_list[0]
+                        error_rate = received_list[1]
+                        protocol = received_list[2] if len(received_list) > 2 else "gbn"  # Default protocol
+                    except json.JSONDecodeError:
+                        # Handle the case where the message is not valid JSON
+                        print(f"Received invalid parameters: {decoded_message}")
+                        raise ValueError(f"Invalid parameters format: {decoded_message}")
                     print(f"Received error_type: {error_type}, error_rate: {error_rate}, protocol: {protocol}")
 
                     if protocol == "tcp":
@@ -86,10 +93,15 @@ class Server:
                 try:
                     error_message, clientAddress = serverSocket.recvfrom(1024)  # Buffer size of 1024 bytes
                     decoded_message = error_message.decode()
-                    received_list = ast.literal_eval(decoded_message)  # Safely parse the list
-                    error_type = received_list[0]
-                    error_rate = received_list[1]
-                    protocol = received_list[2] if len(received_list) > 2 else "gbn"
+                    try:
+                        received_list = json.loads(decoded_message)  # Parse JSON data
+                        error_type = received_list[0]
+                        error_rate = received_list[1]
+                        protocol = received_list[2] if len(received_list) > 2 else "gbn"
+                    except json.JSONDecodeError:
+                        # Handle the case where the message is not valid JSON
+                        print(f"Received invalid parameters: {decoded_message}")
+                        raise ValueError(f"Invalid parameters format: {decoded_message}")
                     print(f"Received error_type: {error_type}, error_rate: {error_rate}, protocol: {protocol}")
 
                     if protocol == "tcp":

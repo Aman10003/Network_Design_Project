@@ -2,6 +2,7 @@
 from socket import *
 import receive
 import send
+import json
 from tcp import TCPSender, TCPReceiver
 
 
@@ -30,8 +31,18 @@ class Client:
         self.client_socket.sendto("GET".encode(), (self.server_name, self.server_port))
 
         # Send error parameters and protocol
-        params = [error_type, error_rate, "tcp"]
-        self.client_socket.sendto(str(params).encode(), (self.server_name, self.server_port))
+        # Convert error_type to numeric value if it's a string
+        if error_type == 'random':
+            numeric_error_type = 5  # Assuming 5 is for random errors
+        elif error_type == 'ack':
+            numeric_error_type = 2  # Assuming 2 is for ACK errors
+        elif error_type == 'data':
+            numeric_error_type = 3  # Assuming 3 is for data errors
+        else:
+            numeric_error_type = 1  # Default to no errors
+
+        params = [numeric_error_type, error_rate, "tcp"]
+        self.client_socket.sendto(json.dumps(params).encode(), (self.server_name, self.server_port))
 
         # Configure TCP parameters
         sender = TCPSender(self.client_socket, (self.server_name, self.server_port))
@@ -122,7 +133,7 @@ class Client:
             "4": "tcp"
         }[protocol_choice]
 
-        message = str([self.error_type, self.error_rate, protocol])
+        message = json.dumps([self.error_type, self.error_rate, protocol])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
 
         # --- TCP branch ---
@@ -166,7 +177,7 @@ class Client:
             "4": "tcp"
         }[protocol_choice]
 
-        message = str([self.error_type, self.error_rate, protocol])
+        message = json.dumps([self.error_type, self.error_rate, protocol])
         self.client_socket.sendto(message.encode(), (self.server_name, self.server_port))
         file_loc = input("If you want a custom file, input file path now else press enter: ").strip()
         s = send.send()

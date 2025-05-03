@@ -2,7 +2,6 @@ import time
 from Client import Client
 from plot_tcp_metrics import plot_tcp_metrics
 import subprocess
-import os
 
 def generate_single_run_graphs():
     """Generate graphs from a single TCP simulation run"""
