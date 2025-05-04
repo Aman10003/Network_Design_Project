@@ -111,17 +111,17 @@ class Server:
                             data = receiver.recv()
 
                             with open("uploaded_file.bmp", "wb") as f:
-                                # # Check if data starts with "M" but missing "B"
-                                # if data.startswith(b"M") and not data.startswith(b"BM"):
-                                #     # Prepend the missing "B"
-                                #     data = b"B" + data
-                                # # Keep the existing code for finding BMP header elsewhere
-                                # elif not data.startswith(b"BM"):
-                                #     bmp_header_pos = data.find(b"BM")
-                                #     if bmp_header_pos > 0:
-                                #         data = data[bmp_header_pos:]
-                                #
-                                # f.write(data)
+                                # Check if data starts with "M" but missing "B"
+                                if data.startswith(b"M") and not data.startswith(b"BM"):
+                                    # Prepend the missing "B"
+                                    data = b"B" + data
+                                # Keep the existing code for finding BMP header elsewhere
+                                elif not data.startswith(b"BM"):
+                                    bmp_header_pos = data.find(b"BM")
+                                    if bmp_header_pos > 0:
+                                       data = data[bmp_header_pos:]
+
+                                f.write(data)
                             print(f"Received PUSH via TCP ({len(data)} bytes).")
                     else:
                         r = receive.receive()
