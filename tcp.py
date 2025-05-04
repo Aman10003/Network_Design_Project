@@ -1,6 +1,10 @@
 import socket
 import struct
 import time
+import pickle
+import numpy as np
+from PIL import Image
+from io import BytesIO
 from checksums import compute_checksum
 
 # TCP Flags
@@ -78,6 +82,31 @@ class TCPSender:
         self.rto_values = []  # RTO values
         self.start_time = time.time()  # Reference start time
 
+    def load_image_bytes(self, data):
+        """
+        Convert data to pickled bytes for transmission.
+        If data is already bytes, it's assumed to be a file and is pickled directly.
+        If data is a path to an image, it's loaded, converted to a NumPy array, and pickled.
+        """
+        if isinstance(data, bytes):
+            # Data is already in bytes format, pickle it
+            try:
+                # Try to load as an image first
+                img = Image.open(BytesIO(data))
+                numpydata = np.asarray(img)
+                return pickle.dumps(numpydata)
+            except:
+                # If that fails, just pickle the raw bytes
+                return pickle.dumps(data)
+        elif isinstance(data, str):
+            # Data is a path to an image
+            img = Image.open(data)
+            numpydata = np.asarray(img)
+            return pickle.dumps(numpydata)
+        else:
+            # Data is something else, try to pickle it directly
+            return pickle.dumps(data)
+
     def _rto(self):
         """Calculate Retransmission Timeout using TCP's standard formula"""
         rto = max(0.1, self.ERTT + 4 * self.DevRTT)
@@ -115,14 +144,17 @@ class TCPSender:
         except socket.timeout:
             raise RuntimeError("Handshake failed: Timeout waiting for SYN-ACK")
 
-    def send(self, data: bytes):
+    def send(self, data):
         """Send data using TCP with congestion control"""
+        # Pickle the data for transmission
+        pickled_data = self.load_image_bytes(data)
+
         base = self.next_seq # Start from current sequence number
         next_seq = self.next_seq
         window = {}  # seq → (time_sent, raw_segment)
 
-        total = len(data)
-        print(f"TCP: Sending {total} bytes of data")
+        total = len(pickled_data)
+        print(f"TCP: Sending {total} bytes of pickled data")
 
         if self.rwnd == 0:
             # Zero window - send a probe packet after a timeout
@@ -131,7 +163,7 @@ class TCPSender:
             # Send a 1-byte probe if window is still zero
             if next_seq > 0:
                 probe_seq = max(0, next_seq - 1)
-                probe_data = data[probe_seq:probe_seq + 1] if probe_seq < total else b''
+                probe_data = pickled_data[probe_seq:probe_seq + 1] if probe_seq < total else b''
                 probe = TCPSegment(FLAG_ACK, probe_seq, 0, 0, probe_data).pack()
                 self.sock.sendto(probe, self.peer)
                 print("TCP: Sent zero window probe")
@@ -140,7 +172,7 @@ class TCPSender:
             # Fill window based on min(cwnd, rwnd)
             effective_window = min(self.cwnd * self.mss, self.rwnd)
             while next_seq < base + effective_window and next_seq < total:
-                chunk = data[next_seq: next_seq + self.mss]
+                chunk = pickled_data[next_seq: next_seq + self.mss]
                 seg = TCPSegment(FLAG_ACK, next_seq, 0, self.rwnd, chunk).pack()
                 self.sock.sendto(seg, self.peer)
                 window[next_seq] = (time.time(), seg)
@@ -307,6 +339,43 @@ class TCPReceiver:
         self.fin_received = False
         self.fin_seq = 0
 
+    def unpickle_data(self, data_parts):
+        """
+        Unpickle the received data.
+        """
+        # Join all data parts
+        joined_data = b"".join(data_parts)
+        print(f"TCP: Unpickling {len(joined_data)} bytes of data")
+
+        # First, check if the data starts with the pickle protocol marker
+        if joined_data and joined_data[0] in (0x80, 0x81, 0x82, 0x83, 0x84, 0x85):
+            try:
+                # Unpickle the data
+                unpickled_data = pickle.loads(joined_data)
+                print("TCP: Data unpickled successfully")
+
+                # If it's a NumPy array, convert it back to bytes for compatibility
+                if isinstance(unpickled_data, np.ndarray):
+                    print("TCP: Converting NumPy array to image bytes")
+                    img = Image.fromarray(unpickled_data)
+                    img_bytes = BytesIO()
+                    img.save(img_bytes, format="BMP")
+                    return img_bytes.getvalue()
+
+                return unpickled_data
+            except pickle.UnpicklingError as e:
+                print(f"TCP: Pickle unpickling error: {e}")
+                # If it's a specific unpickling error, return the raw data
+                return joined_data
+            except Exception as e:
+                print(f"TCP: Error during unpickling: {e}")
+                # For any other exception, return the raw data
+                return joined_data
+        else:
+            # If the data doesn't start with a pickle protocol marker, it's likely raw data
+            print("TCP: Data doesn't appear to be pickled, returning raw data")
+            return joined_data
+
     def listen(self):
         """Perform passive open (server-side 3-way handshake)"""
         # Wait for SYN
@@ -419,13 +488,13 @@ class TCPReceiver:
                 if data_parts and timeout_attempts >= max_attempts:
                     print(f"TCP: Multiple timeouts after receiving data, assuming transfer complete")
                     print(f"TCP: Returning {sum(len(d) for d in data_parts)} bytes received so far")
-                    return b"".join(data_parts)
+                    return self.unpickle_data(data_parts)
 
                 # If it's been a long time since we received any data, assume transfer is complete
                 if data_parts and time.time() - last_data_time > 30:  # 30 seconds without data
                     print(f"TCP: No data received for 30 seconds, assuming transfer complete")
                     print(f"TCP: Returning {sum(len(d) for d in data_parts)} bytes received so far")
-                    return b"".join(data_parts)
+                    return self.unpickle_data(data_parts)
 
                 # If we've never received any data and hit max timeouts, raise exception
                 if not data_parts and timeout_attempts >= max_attempts:
@@ -438,8 +507,8 @@ class TCPReceiver:
                 print(f"TCP: Error during receive: {e}")
                 if data_parts:
                     print(f"TCP: Returning {sum(len(d) for d in data_parts)} bytes received so far")
-                    return b"".join(data_parts)
+                    return self.unpickle_data(data_parts)
                 raise  # Re-raise if no data received
 
         # Return the reassembled data
-        return b"".join(data_parts)
+        return self.unpickle_data(data_parts)
