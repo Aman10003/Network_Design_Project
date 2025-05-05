@@ -1,7 +1,6 @@
 from socket import *
 import receive
 import send
-import ast  # To safely convert string representation of a list back to a list
 import json
 from tcp import TCPSender, TCPReceiver
 
@@ -124,9 +123,7 @@ class Server:
                                                         window_size = 10)
 
                 except Exception as e:
-
-                    print(f"Error while handling 'PUSH' request: {e}")
-
+                    print(f"Error while handling '{message}' request: {e}")
 
             elif message == 'END':
                 print("Ending communication, closing server.")
@@ -135,5 +132,5 @@ class Server:
 
 
 if __name__ == '__main__':
-    c = Server()
-    c.main()
+    s = Server()
+    s.main()
