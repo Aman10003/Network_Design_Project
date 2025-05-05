@@ -41,6 +41,7 @@ class TCPSegment:
                                 self.ack,
                                 self.win)
         ck = compute_checksum(hdr_wo_ck + self.data)
+        print(f"Calculated checksum: {ck}")
         return hdr_wo_ck + struct.pack("!H", ck) + self.data
 
     @classmethod
@@ -53,6 +54,7 @@ class TCPSegment:
         hdr_wo_ck = raw[:cls._HDR_LEN - 2]
         if compute_checksum(hdr_wo_ck + data) != ck:
             raise ValueError("Checksum mismatch")
+        print(f"Received checksum: {ck}, Computed checksum: {compute_checksum(hdr_wo_ck + data)}")
         return cls(flags, seq, ack, win, data)
 
 
@@ -148,6 +150,10 @@ class TCPSender:
         """Send data using TCP with congestion control"""
         # Pickle the data for transmission
         pickled_data = self.load_image_bytes(data)
+
+        # Debug: Save pickled data to a file
+        with open("debug_pickled_data.bin", "wb") as f:
+            f.write(pickled_data)
 
         base = self.next_seq # Start from current sequence number
         next_seq = self.next_seq
@@ -345,6 +351,11 @@ class TCPReceiver:
         """
         # Join all data parts
         joined_data = b"".join(data_parts)
+
+        # Debug: Save reassembled data to a file
+        with open("debug_reassembled_data.bin", "wb") as f:
+            f.write(joined_data)
+
         print(f"TCP: Unpickling {len(joined_data)} bytes of data")
 
         # First, check if the data starts with the pickle protocol marker
@@ -352,6 +363,11 @@ class TCPReceiver:
             try:
                 # Unpickle the data
                 unpickled_data = pickle.loads(joined_data)
+
+                # Debug: Save unpickled data to a file
+                with open("debug_unpickled_data.bin", "wb") as f:
+                    f.write(pickle.dumps(unpickled_data))
+
                 print("TCP: Data unpickled successfully")
 
                 # If it's a NumPy array, convert it back to bytes for compatibility

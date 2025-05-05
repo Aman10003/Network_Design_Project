@@ -189,6 +189,10 @@ class Client:
 
             with open(file_loc or "image/OIP.bmp", "rb") as f:
                 data = f.read()
+
+            # Debugging: Log the size and first few bytes of the data being sent
+            print(f"Client: Sending file via TCP, size={len(data)} bytes, first 20 bytes={data[:20]}")
+
             tcp.send(data)
             tcp.close()
             print("File sent via TCP.")

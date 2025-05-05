@@ -110,6 +110,9 @@ class Server:
                         if receiver.listen():  # Check if handshake was successful
                             data = receiver.recv()
 
+                            # Debugging: Log the size and first few bytes of the received data
+                            print(f"Server: Received file via TCP, size={len(data)} bytes, first 20 bytes={data[:20]}")
+
                             with open("uploaded_file.bmp", "wb") as f:
                                 f.write(data)
                             print(f"Received PUSH via TCP ({len(data)} bytes).")
