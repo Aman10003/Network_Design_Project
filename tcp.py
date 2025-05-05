@@ -96,18 +96,26 @@ class TCPSender:
                 # Try to load as an image first
                 img = Image.open(BytesIO(data))
                 numpydata = np.asarray(img)
-                return pickle.dumps(numpydata)
+                pickled_data = pickle.dumps(numpydata)
+                print(f"TCPSender: Serialized image data, first byte={pickled_data[0]}")
+                return pickled_data
             except:
                 # If that fails, just pickle the raw bytes
-                return pickle.dumps(data)
+                pickled_data = pickle.dumps(data)
+                print(f"TCPSender: Serialized raw bytes, first byte={pickled_data[0]}")
+                return pickled_data
         elif isinstance(data, str):
             # Data is a path to an image
             img = Image.open(data)
             numpydata = np.asarray(img)
-            return pickle.dumps(numpydata)
+            pickled_data = pickle.dumps(numpydata)
+            print(f"TCPSender: Serialized image from path, first byte={pickled_data[0]}")
+            return pickled_data
         else:
             # Data is something else, try to pickle it directly
-            return pickle.dumps(data)
+            pickled_data = pickle.dumps(data)
+            print(f"TCPSender: Serialized generic data, first byte={pickled_data[0]}")
+            return pickled_data
 
     def _rto(self):
         """Calculate Retransmission Timeout using TCP's standard formula"""
@@ -151,16 +159,16 @@ class TCPSender:
         # Pickle the data for transmission
         pickled_data = self.load_image_bytes(data)
 
-        # Debug: Save pickled data to a file
-        with open("debug_pickled_data.bin", "wb") as f:
-            f.write(pickled_data)
-
         base = self.next_seq # Start from current sequence number
         next_seq = self.next_seq
         window = {}  # seq → (time_sent, raw_segment)
 
         total = len(pickled_data)
         print(f"TCP: Sending {total} bytes of pickled data")
+
+        # Debug: Log the first packet's sequence number and data
+        if total > 0:
+            print(f"TCP: First packet to send, seq={base}, first byte={pickled_data[0]}")
 
         if self.rwnd == 0:
             # Zero window - send a probe packet after a timeout
@@ -351,11 +359,6 @@ class TCPReceiver:
         """
         # Join all data parts
         joined_data = b"".join(data_parts)
-
-        # Debug: Save reassembled data to a file
-        with open("debug_reassembled_data.bin", "wb") as f:
-            f.write(joined_data)
-
         print(f"TCP: Unpickling {len(joined_data)} bytes of data")
 
         # First, check if the data starts with the pickle protocol marker
@@ -363,11 +366,6 @@ class TCPReceiver:
             try:
                 # Unpickle the data
                 unpickled_data = pickle.loads(joined_data)
-
-                # Debug: Save unpickled data to a file
-                with open("debug_unpickled_data.bin", "wb") as f:
-                    f.write(pickle.dumps(unpickled_data))
-
                 print("TCP: Data unpickled successfully")
 
                 # If it's a NumPy array, convert it back to bytes for compatibility
@@ -426,6 +424,7 @@ class TCPReceiver:
         max_attempts = 3  # Maximum number of consecutive timeouts
         timeout_attempts = 0
         last_data_time = time.time()  # Track when we last received data
+        first_packet_received = False  # Track if the first packet is received
 
         while not self.fin_received:
             try:
@@ -435,6 +434,14 @@ class TCPReceiver:
                 last_data_time = time.time()  # Update last data time
 
                 seg = TCPSegment.unpack(raw)
+
+                # Debug: Log the sequence number and length of the received segment
+                print(f"TCP: Received segment, seq={seg.seq}, len={len(seg.data)}")
+
+                # Debug: Validate the first packet
+                if not first_packet_received:
+                    first_packet_received = True
+                    print(f"TCP: First packet received, seq={seg.seq}, first byte={seg.data[0]}")
 
                 # Check for FIN flag
                 if seg.flags & FLAG_FIN:
@@ -463,13 +470,19 @@ class TCPReceiver:
                 if seg.seq == self.expected:
                     # In-order segment
                     print(f"TCP: Received in-order segment, seq={seg.seq}, len={len(seg.data)}")
+
+                    # Debug: Validate the first packet
+                    if not first_packet_received:
+                        first_packet_received = True
+                        print(f"TCP: First packet received, first byte={seg.data[0]}")
+
                     data_parts.append(seg.data)
                     self.expected += len(seg.data)
 
                     # Check if we have buffered segments that can now be processed
                     while self.expected in self.buffer:
+                        print(f"TCP: Processing buffered segment, seq={self.expected}")
                         data_parts.append(self.buffer[self.expected])
-                        print(f"TCP: Using buffered segment, seq={self.expected}")
                         next_seq = self.expected + len(self.buffer[self.expected])
                         del self.buffer[self.expected]
                         self.expected = next_seq
@@ -478,6 +491,10 @@ class TCPReceiver:
                     # Out-of-order segment, buffer it
                     print(f"TCP: Received out-of-order segment, seq={seg.seq}, expected={self.expected}")
                     self.buffer[seg.seq] = seg.data
+
+                # Debug: Log the first byte of the received data
+                if seg.data:
+                    print(f"TCP: First byte of received segment: {seg.data[0]}")
 
                 # Update receiver window based on available buffer space
                 used_buffer = sum(len(data) for data in self.buffer.values()) + sum(len(data) for data in data_parts)
@@ -525,6 +542,15 @@ class TCPReceiver:
                     print(f"TCP: Returning {sum(len(d) for d in data_parts)} bytes received so far")
                     return self.unpickle_data(data_parts)
                 raise  # Re-raise if no data received
+
+        # Debug: Save reassembled data to a file
+        reassembled_data = b"".join(data_parts)
+        with open("debug_reassembled_data_fixed.bin", "wb") as f:
+            f.write(reassembled_data)
+
+        # Debug: Log the first byte of the reassembled data
+        if reassembled_data:
+            print(f"TCP: First byte of reassembled data: {reassembled_data[0]}")
 
         # Return the reassembled data
         return self.unpickle_data(data_parts)
